@@ -142,3 +142,26 @@ sudo pacman -S deepseek-harness-desktop-wayland     # 按提示替换旧 deepsee
 - 稳定性矩阵原始日志：`/tmp/rc3lab/{logs,shots,results}`（临时，未入库；结论已写入 [rc3-wayland-stability.md](rc3-wayland-stability.md)）
 - 包与 md5/sha256：`/srv/localrepo/deepseek-harness-desktop-wayland-0.2.2rc3-1-x86_64.pkg.tar.zst`，sha256 `63065ea7…f888`
 - 源码仓库：`/home/Arch/dsh-re/dsh-desktop-wayland`（README + patches + packaging + ci）
+
+---
+
+## 8. 2026-11-14 17:38 后续：用户 profile 的 Inspector 残留错误已处理
+
+安装新包并重启后，用户 profile 仍报 console 错误（截图：`ws://127.0.0.1:9230/ingest` 失败 ×N + `dsh-app://app/api/changes.summary?...&seq=...` 404 ×2）。
+
+**归因**：这两类错误都来自用户 profile 里仍启用的实验 bundle `@deepseek-ai/dsh-experimental-inspector-profile`（非新包构建问题）：
+
+1. `ingest` 错误：inspector Client 连接 9230 的 ingest WebSocket；桌面 renderer 的 origin 是 `dsh-app://app`，而上游 rc.3 的 `authorizedClient()` 只放行 loopback hostname 或 `clientOrigins` 白名单（默认空），故被拒并无限重连（每次 `console.error`）。
+2. `changes.summary` 404：同一 bundle 的 `session-inspector` 组件为旧会话（如 `ch_0a561bb1`）请求变更摘要；Host 按 `missing` 返回 404，但浏览器网络层仍记录 “Failed to load resource”。
+
+**处理**（本机已执行，未改包）：备份并编辑 `~/.dsh/profiles/desktop/package.json`，从 `dsh.profile.bundles` 移除该 bundle 后重启桌面端：
+
+```bash
+cp ~/.dsh/profiles/desktop/package.json ~/.dsh/profiles/desktop/package.json.bak-$(date +%Y%m%d-%H%M%S)
+# 删除 bundles 数组中的 "@deepseek-ai/dsh-experimental-inspector-profile"
+```
+
+**验证**：用同一新包 + 去除该 bundle 的用户 profile 克隆做隔离 CDP 捕获（20 s）：**0 console error / 0 warning，0 个 >=400 网络请求**。同时 9230 无认证 CDP 端口不再监听（安全面收窄）。
+
+如需保留 Inspector 功能，可在后续版本用代码补丁把 `dsh-app://app` 加入 ingest origin 白名单（token 仍为随机口令），但 `changes.summary` 404 属上游对旧会话数据的预期处理，仍可能出现。
+

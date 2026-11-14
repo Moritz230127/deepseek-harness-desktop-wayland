@@ -56,7 +56,12 @@ sudo pacman -S deepseek-harness-desktop-linux   # 旧包仍在 localrepo
 ### 零报错验收前置（用户 profile）
 
 若 `~/.dsh/profiles/desktop/package.json` 的 `dsh.profile.bundles` 中含
-`"@deepseek-ai/dsh-experimental-inspector-profile"`，请移除该项（同时消除 9230 无认证 CDP 调试端口的安全风险），否则 DevTools console 会有 19 条 Agent 侧的 ingest 连接错误。
+`"@deepseek-ai/dsh-experimental-inspector-profile"`，请移除该项并重启桌面端（同时消除 9230 无认证 CDP 调试端口的安全风险）。否则 DevTools console 会持续出现：
+
+- 19+ 条 `WebSocket connection to 'ws://127.0.0.1:9230/ingest' failed` —— 该实验 bundle 的 Client 侧尝试连接 Inspector ingest，但桌面 renderer 的 `dsh-app://app` origin 不在上游白名单内（rc.3 未修）；
+- 少量 `GET /api/changes.summary?...&seq=... 404` —— 同一实验 bundle 的 session-inspector 为旧会话请求变更摘要，上游按 `missing` 处理但浏览器仍会记录 404。
+
+移除后实测 fresh 与用户 profile 均 **0 error / 0 warning**（见 docs/build-verification.md）。本机 2026-11-14 已由维护者执行移除（备份 `~/.dsh/profiles/desktop/package.json.bak-*`）。
 
 ## 截图
 
