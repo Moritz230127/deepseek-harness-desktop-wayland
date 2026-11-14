@@ -1,0 +1,140 @@
+# 目的：Linux 发布设置：.env.linux 加载/校验、无策略无签名约束、工具链预检放宽到 linux。
+diff --git a/.gitignore b/.gitignore
+index 6255c708..664daad4 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,6 +2,7 @@ CLAUDE.local.md
+ .env
+ apps/desktop/.env.windows
+ apps/desktop/.env.macos
++apps/desktop/.env.linux
+ apps/desktop/*.p12
+ node_modules/
+ lib/
+diff --git a/apps/desktop/.env.linux.example b/apps/desktop/.env.linux.example
+new file mode 100644
+index 00000000..f94318fb
+--- /dev/null
++++ b/apps/desktop/.env.linux.example
+@@ -0,0 +1,14 @@
++# Copy to .env.linux (Git ignored). Use UTF-8 and quote values containing # or spaces.
++# Linux Desktop artifacts are built unsigned, so no signing, notarization, or certificate
++# setting applies. Values are not shell-expanded.
++DSH_DESKTOP_APP_ID=com.deepseek.dsh
++
++# The mandatory-update policy channel is Windows and macOS only. The policy service identifies its
++# Desktop clients as desktop-win or desktop-mac and has no Linux identity, and a Linux release carries
++# no update channel, so no policy decision could drive an action. A Linux application therefore embeds
++# no policy and polls nothing: DSH_DESKTOP_AUTO_UPDATE_ENV, both
++# DSH_DESKTOP_MANDATORY_UPDATE_*_ORIGIN settings, and DSH_DESKTOP_MANDATORY_UPDATE_CONFIG do not apply.
++
++# Optional npm registry for the bundled dsh runtime install; defaults to https://registry.npmjs.org/.
++# A local mirror such as https://registry.npmmirror.com speeds up repeated local packages.
++# DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com
+diff --git a/apps/desktop/scripts/desktop-package-environment.d.mts b/apps/desktop/scripts/desktop-package-environment.d.mts
+index ec9da721..76c07e5e 100644
+--- a/apps/desktop/scripts/desktop-package-environment.d.mts
++++ b/apps/desktop/scripts/desktop-package-environment.d.mts
+@@ -20,7 +20,7 @@ export function localMacOSPackageEnvironment(environment?: NodeJS.ProcessEnv): N
+  * @returns Isolated environment with file-owned release settings.
+  */
+ export function loadDesktopPackageEnvironment(
+-  platform: 'win32' | 'darwin',
++  platform: 'win32' | 'darwin' | 'linux',
+   environment?: NodeJS.ProcessEnv,
+   appRoot?: string,
+   options?: { unsigned?: boolean, prepareOnly?: boolean },
+@@ -35,6 +35,6 @@ export function loadDesktopPackageEnvironment(
+  */
+ export function validateDesktopPackageEnvironment(
+   environment: NodeJS.ProcessEnv,
+-  target: { platform: 'win32' | 'darwin', arch: string },
++  target: { platform: 'win32' | 'darwin' | 'linux', arch: string },
+   options?: { unsigned?: boolean, prepareOnly?: boolean, skipNotarization?: boolean },
+ ): void
+diff --git a/apps/desktop/scripts/desktop-package-environment.mjs b/apps/desktop/scripts/desktop-package-environment.mjs
+index 83e9dbbc..abe37d47 100644
+--- a/apps/desktop/scripts/desktop-package-environment.mjs
++++ b/apps/desktop/scripts/desktop-package-environment.mjs
+@@ -7,7 +7,7 @@ import { readDesktopPackageSettings as readSettings } from './desktop-file-setti
+ import { resolveDesktopAppId, resolveMacOSNotarizationEnvironment, resolveMacOSSigningEnvironment, resolveNpmRegistry } from './desktop-release-environment.mjs'
+ import { resolveDesktopAutoUpdateConfig } from './desktop-auto-update-environment.mjs'
+ import { createWindowsTokenSigner } from './windows-sign.mjs'
+-import { resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mjs'
++import { desktopPlatformEmbedsPolicy, resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mjs'
+ import { validateMacOSSignatureCacheDirectory } from './macos-signature-cache-directory.mjs'
+ import { resolveMacOSPackageSettings } from './macos-package-settings.mjs'
+ import { resolveWindowsSignatureCacheDirectory } from './windows-signature-cache-directory.mjs'
+@@ -39,7 +39,7 @@ export function localMacOSPackageEnvironment(environment = process.env) {
+  * Any defined Mac ZIP override rejects Windows, including an empty value; nonempty Windows overrides reject macOS.
+  * PACKAGE_TEST_RELEASE_ID overrides the test preset only; blank retains its configured ID.
+  * PACKAGE_WINDOWS_COMPRESSION_LEVEL selects 3 or 7 for Windows workflow builds; blank retains the file setting.
+- * @param {'win32' | 'darwin'} platform Target platform.
++ * @param {'win32' | 'darwin' | 'linux'} platform Target platform.
+  * @param {NodeJS.ProcessEnv} environment Parent environment, retained only for unrelated build tools.
+  * @param {string} appRoot Desktop application directory; relative credential paths resolve here.
+  * @param {{ unsigned?: boolean, prepareOnly?: boolean }} options Unsigned presets and Windows preparation-only presets never read signing credentials.
+@@ -58,8 +58,11 @@ export function loadDesktopPackageEnvironment(platform, environment = process.en
+     if (!['3', '7'].includes(zipCompression)) throw new Error('desktop package: workflow ZIP compression must be 3 or 7')
+   }
+   const preset = environment.DSH_PACKAGING_PRESET
+-  let path = join(appRoot, platform === 'win32' ? '.env.windows' : '.env.macos')
++  let path = join(appRoot, platform === 'win32' ? '.env.windows' : platform === 'darwin' ? '.env.macos' : '.env.linux')
+   if (preset !== undefined) {
++    // Linux is configured by .env.linux alone: a preset describes a signing machine, and Linux artifacts
++    // are unsigned, so no signing file exists for a preset to add.
++    if (platform === 'linux') throw new Error('desktop package: the Linux target has no packaging preset; configure .env.linux')
+     if (preset !== 'test' && preset !== 'production') throw new Error('desktop package: preset must be test or production')
+     const root = environment.DSH_PACKAGING_CONFIG_DIR
+     if (!root || !isAbsolute(root)) throw new Error('desktop package: DSH_PACKAGING_CONFIG_DIR must be an absolute directory')
+@@ -113,7 +116,7 @@ function requireReadableFile(environment, name) {
+ /**
+  * Validate the packaging mode before preparation without invoking a token or Apple's services.
+  * @param {NodeJS.ProcessEnv} environment Selected local defaults or file-owned release settings.
+- * @param {{ platform: 'win32' | 'darwin', arch: string }} target Selected release target.
++ * @param {{ platform: 'win32' | 'darwin' | 'linux', arch: string }} target Selected release target.
+  * @param {{ unsigned?: boolean, prepareOnly?: boolean, skipNotarization?: boolean }} options Explicit packaging mode.
+  * @returns {void}
+  */
+@@ -121,9 +124,17 @@ export function validateDesktopPackageEnvironment(environment, target, options =
+   resolveDesktopTargetBuildPaths(environment, target.platform, target.arch)
+   resolveDesktopAppId(environment)
+   resolveNpmRegistry(environment)
+-  if (target.platform !== 'darwin' || !options.unsigned) resolveDesktopPolicyEnvironment(environment)
++  // Linux carries no policy identity at all, and a local unsigned macOS build embeds no policy either.
++  if (desktopPlatformEmbedsPolicy(target.platform) && (target.platform !== 'darwin' || !options.unsigned)) {
++    resolveDesktopPolicyEnvironment(environment)
++  }
+   if (target.platform === 'darwin') resolveMacOSPackageSettings(environment)
+-  else resolveWindowsPackageSettings(environment)
++  else if (target.platform === 'win32') resolveWindowsPackageSettings(environment)
++  // Linux artifacts carry no signature and no update channel, so this target is always unsigned;
++  // failing here names the reason instead of surfacing a missing origin much later.
++  if (target.platform === 'linux' && !options.unsigned) {
++    throw new Error('desktop package: Linux artifacts are unsigned; pass --unsigned')
++  }
+   if (options.unsigned) return
+   if (!options.prepareOnly) resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
+   if (target.platform === 'win32') {
+diff --git a/apps/desktop/scripts/desktop-toolchain-preflight.ts b/apps/desktop/scripts/desktop-toolchain-preflight.ts
+index ff855cfd..08c8dc1f 100644
+--- a/apps/desktop/scripts/desktop-toolchain-preflight.ts
++++ b/apps/desktop/scripts/desktop-toolchain-preflight.ts
+@@ -75,7 +75,7 @@ async function probeWindowsInstallerToolchain(environment: NodeJS.ProcessEnv): P
+  * @returns Every probe that failed, empty when the host can run the packaging sequence.
+  */
+ export async function probeDesktopToolchain(
+-  platform: 'darwin' | 'win32',
++  platform: 'darwin' | 'win32' | 'linux',
+   environment: NodeJS.ProcessEnv = process.env,
+ ): Promise<readonly DesktopToolchainProbeFailure[]> {
+   const failures: DesktopToolchainProbeFailure[] = []
+@@ -92,7 +92,7 @@ export async function probeDesktopToolchain(
+  * @returns Resolves when every probe passes.
+  */
+ export async function requireDesktopToolchain(
+-  platform: 'darwin' | 'win32',
++  platform: 'darwin' | 'win32' | 'linux',
+   environment: NodeJS.ProcessEnv = process.env,
+ ): Promise<void> {
+   const failures = await probeDesktopToolchain(platform, environment)

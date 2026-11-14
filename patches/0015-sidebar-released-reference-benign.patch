@@ -1,0 +1,27 @@
+Subject: [PATCH] sidebar: treat a released session reference as normal teardown
+
+Closing a session tab while its retained reference is still initializing makes
+`reference.ready` reject with `Session reference "…" is released`. The sidebar
+logged that expected teardown race as a console error. Keep real failures on
+the error channel and drop only that benign rejection.
+
+---
+diff --git a/packages/client/ui-sidebar-right/src/client/session-view.ts b/packages/client/ui-sidebar-right/src/client/session-view.ts
+--- a/packages/client/ui-sidebar-right/src/client/session-view.ts
++++ b/packages/client/ui-sidebar-right/src/client/session-view.ts
+@@ -31,7 +31,12 @@ export class SidebarSessionView {
+     private readonly onTabRelease: (view: SidebarSessionView) => void,
+   ) {
+     this.reference = sessions.retain(sessionId, { source: 'sidebarView' })
+-    void this.reference.ready.catch((error: unknown) => { console.error('Sidebar Session opening failed:', error) })
++    void this.reference.ready.catch((error: unknown) => {
++      // A retired reference is normal teardown (e.g. the tab closed while the body was still
++      // initializing), not a user-actionable failure. Keep every other error visible.
++      if (error instanceof Error && error.message.includes('is released')) return
++      console.error('Sidebar Session opening failed:', error)
++    })
+   }
+ 
+   /** Whether an initialized retained body still needs this view. */
+-- 
+2.51.0

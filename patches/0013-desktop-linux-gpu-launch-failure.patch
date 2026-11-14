@@ -1,0 +1,31 @@
+Subject: [PATCH] desktop: hand fatal Linux GPU launch failures to the launcher
+
+On NVIDIA + Wayland a GPU process that cannot launch at all is retried by
+Chromium until it aborts the browser with `GPU process isn't usable. Goodbye.`
+(the window goes blank / flashes and the app dies). Electron exposes that
+state as a `child-process-gone` event with reason `launch-failed`; exiting
+with 75 lets our launcher retry once with software rendering while staying on
+native Wayland. Other GPU crashes stay with Chromium's own auto-restart.
+
+---
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -397,6 +397,17 @@ async function main(): Promise<void> {
+   const loginShellRead = new AbortController()
+   // The probe runs in its own process group, which outlives Desktop unless the read is aborted.
+   app.on('will-quit', () => { loginShellRead.abort() })
++  // NVIDIA + Wayland: when the GPU process cannot launch at all, Chromium retries it and then
++  // aborts the browser (blank/flashing window, then exit). Hand that deterministic state to the
++  // launcher (75) so it can retry once with software rendering, still on native Wayland.
++  // Ordinary GPU crashes keep Chromium's own restart path.
++  if (process.platform === 'linux') {
++    app.on('child-process-gone', (_event, details) => {
++      if (details.type !== 'GPU' || details.reason !== 'launch-failed') return
++      console.warn('desktop gpu: GPU launch failed; exiting 75 for launcher fallback')
++      app.exit(75)
++    })
++  }
+   const loginShell = readDesktopLoginShellEnvironment(process.env, resolveDesktopLoginShellConfig(process.env), {
+     signal: loginShellRead.signal,
+   }).then((result) => {

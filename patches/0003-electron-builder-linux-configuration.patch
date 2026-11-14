@@ -1,0 +1,70 @@
+# 目的：electron-builder 的 Linux 配置：可执行名、desktopName/app_id、Linux 关 ASAR（独立 Node 宿主）、无强制更新策略、原始图标。
+diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
+index d5522e3d..158bdb4f 100644
+--- a/apps/desktop/scripts/electron-builder-config.mjs
++++ b/apps/desktop/scripts/electron-builder-config.mjs
+@@ -23,7 +23,7 @@ import {
+ import { resolveDesktopAutoUpdateConfig } from './desktop-auto-update-environment.mjs'
+ import { resolveDesktopBuildCommit } from './desktop-build-commit.mjs'
+ import { resolveDesktopBuildVersion } from './desktop-build-version.mjs'
+-import { resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mjs'
++import { desktopPlatformEmbedsPolicy, resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mjs'
+ import { desktopArtifactOutput, desktopTargetBuildPaths, resolveDesktopBuildTarget } from './desktop-build-paths.mjs'
+ import { installWindowsDirectoryInstaller } from './windows-directory-installer.mjs'
+ import { preserveWindowsRuntimeSignature, signWindowsCode } from './windows-runtime-signature.mjs'
+@@ -66,7 +66,11 @@ export function createElectronBuilderConfig(
+   if (skipNotarization && (unsigned || resolvedPlatform !== 'darwin')) throw new Error('Skipping notarization requires a signed macOS build')
+   const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
+   const packagesWindows = resolvedPlatform === 'win32'
+-  const policy = packagesMacOS && unsigned ? undefined : resolveDesktopPolicyEnvironment(env)
++  // Linux carries no policy identity at all, and upstream suppresses the policy for local unsigned
++  // macOS builds; every remaining target embeds and polls it.
++  const policy = desktopPlatformEmbedsPolicy(resolvedPlatform) && !(packagesMacOS && unsigned)
++    ? resolveDesktopPolicyEnvironment(env)
++    : undefined
+   if (resolvedPlatform === 'win32') installWindowsDirectoryInstaller()
+   const macOSSigning = packagesMacOS && !unsigned ? resolveMacOSSigningEnvironment(env) : undefined
+   if (packagesMacOS && !unsigned && !skipNotarization) resolveMacOSNotarizationEnvironment(env)
+@@ -113,6 +117,8 @@ export function createElectronBuilderConfig(
+       dshDesktopAppId: appId,
+       dshDesktopUpdateChannel: update?.channel ?? 'nightly',
+       ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
++      // Read by Electron as the window app_id and by the Linux target as the .desktop filename.
++      ...(resolvedPlatform === 'linux' ? { desktopName: 'deepseek-harness' } : {}),
+       ...buildVersion === productVersion ? {} : { version: buildVersion },
+       ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
+     },
+@@ -122,7 +128,10 @@ export function createElectronBuilderConfig(
+     // Unsigned builds carry their own suffix so a shared file can never pass for a release artifact.
+     artifactName: `deepseek-harness-\${version}-\${os}-\${arch}${output.suffix}.\${ext}`,
+     directories: { output: output.directory },
+-    asar: true,
++    // A standalone Node cannot read inside an ASAR archive, and Linux hosts the payload in the primary
++    // runtime's Node rather than Electron's. An unpacked tree keeps every file the Host and its plugin
++    // subprocesses load readable outside Electron.
++    asar: resolvedPlatform !== 'linux',
+     electronDist: buildPaths.electron,
+     electronFuses: { runAsNode: true },
+     beforeBuild: async () => {
+@@ -159,7 +168,8 @@ export function createElectronBuilderConfig(
+     asarUnpack: unpack,
+     extraResources: [
+       { from: buildPaths.runtime, to: 'runtime' },
+-      { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
++      // The Linux launcher and its window icon use the original artwork.
++      { from: fileURLToPath(new URL(`../resources/${resolvedPlatform === 'linux' ? 'icon.png' : 'icon-windows.png'}`, import.meta.url)), to: 'icon.png' },
+       // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.
+       ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
+     ],
+@@ -256,6 +266,11 @@ export function createElectronBuilderConfig(
+     },
+     linux: {
+       category: 'Development',
++      // electron-builder otherwise derives the command from the scoped package name.
++      executableName: 'deepseek-harness',
++      // Electron derives the window app_id from desktopName, and StartupWMClass has to match it for a
++      // desktop environment to associate the running window with this entry.
++      syncDesktopName: true,
+       target: ['AppImage'],
+     },
+     nsis: {

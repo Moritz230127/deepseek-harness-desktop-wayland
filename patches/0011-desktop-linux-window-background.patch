@@ -1,0 +1,47 @@
+Subject: [PATCH] desktop: paint Linux windows with the effective theme base
+
+Linux windows were created without a native `backgroundColor`, so Electron
+painted the default white surface before the renderer committed its first
+frame. On a dark desktop (niri/noctalia) that produced a visible white flash
+whenever a window appeared or navigated. Windows already does this; reuse the
+existing `chromeFallbackFill()` for the Linux main window and make the welcome
+window follow the same effective light/dark base instead of a fixed white.
+
+Co-authored-by: wayland-analyst <noreply@localhost>
+---
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -271,6 +271,8 @@ function createWindow(preload: string, show = false, primary = false): BrowserWindow {
+     minWidth: 520,
+     minHeight: 600,
+     show,
++    // Linux never painted the window base, so a dark theme showed a white first frame.
++    ...(process.platform === 'linux' && primary ? { backgroundColor: chromeFallbackFill() } : {}),
+     ...(process.platform === 'win32' && primary ? {
+       backgroundColor: chromeFallbackFill(),
+       titleBarStyle: 'hidden' as const,
+diff --git a/apps/desktop/src/welcome-window.ts b/apps/desktop/src/welcome-window.ts
+--- a/apps/desktop/src/welcome-window.ts
++++ b/apps/desktop/src/welcome-window.ts
+@@ -4,8 +4,8 @@ import type { SignInAttemptId } from '@deepseek-ai/dsh-deepseek-account/types'
+ /** Native welcome window and its presentation-only renderer. */
+ 
+ import { join } from 'node:path'
+ import { fileURLToPath } from 'node:url'
+-import { app, BrowserWindow, ipcMain, type BrowserWindowConstructorOptions, type IpcMainInvokeEvent } from 'electron'
++import { app, BrowserWindow, ipcMain, nativeTheme, type BrowserWindowConstructorOptions, type IpcMainInvokeEvent } from 'electron'
+ import type { DesktopLocale } from './locale.ts'
+ import { WELCOME_IPC, type WelcomeOperations } from './welcome-api.ts'
+ 
+@@ -20,7 +20,9 @@ export function welcomeWindowOptions(platform: NodeJS.Platform, locale: DesktopLocale): BrowserWindowConstructorOptions {
+     fullscreenable: false,
+     show: false,
+     title: locale.messages.welcomeTitle,
+-    backgroundColor: platform === 'darwin' || platform === 'win32' ? '#00000000' : '#FFFFFF',
++    backgroundColor: platform === 'darwin' || platform === 'win32'
++      ? '#00000000'
++      : nativeTheme.shouldUseDarkColors ? '#1b1b1c' : '#f9fafb',
+     ...(platform === 'darwin' ? {
+       titleBarStyle: 'hidden',
+       trafficLightPosition: { x: 21, y: 21 },

@@ -1,0 +1,72 @@
+# Maintainer: TODO（本地/内部包，暂不发布 AUR）
+#
+# 预构建包（prebuilt）：不重跑 pnpm/electron-builder，只把 ci/build-wayland.sh 产出的
+# linux-unpacked（由 ci/package-wayland.sh 压成 dsh-payload.tar.zst）装进 pacman 包。
+# 与本目录的 PKGBUILD（源码包，prepare() 打补丁 + build() 全量构建）二选一：
+#   - 本地快速交付/验证：ci/package-wayland.sh（本文件 + 已有 linux-unpacked）
+#   - 可复现重建：       packaging/PKGBUILD（官方源码 + 10 个补丁 + makepkg 全量构建）
+#
+# ci/package-wayland.sh 会把以下资产与 payload 一起平铺到临时 makepkg 目录：
+#   dsh-payload.tar.zst、launcher/、desktop/、systemd/、icons/、
+#   deepseek-harness.apparmor、deepseek-harness.install
+# 因此 package() 从 $startdir 读取这些资产，不把它们列进 source（本地 source 不支持
+# 子目录，实测 makepkg 会报“没有在创建目录中找到”）。
+
+pkgname=deepseek-harness-desktop-wayland
+pkgver=0.2.2rc3
+pkgrel=1
+pkgdesc='Official DeepSeek Harness desktop for Linux (prebuilt payload; native Wayland)'
+arch=('x86_64')
+url='https://github.com/deepseek-ai/deepseek-harness'
+license=('MIT')
+options=('!strip' '!debug' '!emptydirs')
+install=deepseek-harness.install
+
+depends=('gtk3' 'nss' 'libnotify' 'libxtst' 'xdg-utils' 'at-spi2-core'
+         'libsecret' 'alsa-lib' 'dbus' 'libxcrypt-compat')
+optdepends=(
+  'xdg-desktop-portal: Wayland 下的文件对话框/屏幕共享'
+  'gnome-keyring: libsecret 凭据存储后端（GNOME）'
+  'kwallet: libsecret 凭据存储后端（KDE Plasma）'
+  'noto-fonts-cjk: 中文/日文/韩文字体'
+  'nvidia-utils: NVIDIA 驱动与加速'
+)
+provides=('deepseek-harness-desktop')
+conflicts=('deepseek-harness-desktop-linux' 'deepseek-harness-desktop-linux-bin'
+           'deepseek-harness-desktop-linux-git' 'deepseek-harness-desktop' 'dsh-desktop-linux-bin')
+replaces=('deepseek-harness-desktop-linux' 'deepseek-harness-desktop-linux-bin')
+
+# payload 每次构建都变，且本包只在本地交付；ci/package-wayland.sh 用 --skipinteg。
+source=('dsh-payload.tar.zst')
+sha256sums=('SKIP')
+
+build() {
+  : # 预构建载荷，无编译步骤
+}
+
+package() {
+  local appdir="$pkgdir/opt/deepseek-harness-desktop-wayland"
+  install -d "$appdir"
+  bsdtar -xf "$srcdir/dsh-payload.tar.zst" -C "$appdir"
+
+  # 主 launcher（原生 Wayland/GPU 兜底策略都在这里）+ 兼容入口。
+  install -d "$pkgdir/usr/bin"
+  install -Dm755 "$startdir/launcher/deepseek-harness" "$pkgdir/usr/bin/deepseek-harness-wayland"
+  ln -s deepseek-harness-wayland "$pkgdir/usr/bin/deepseek-harness"
+
+  install -Dm644 "$startdir/desktop/deepseek-harness.desktop" \
+    "$pkgdir/usr/share/applications/deepseek-harness.desktop"
+  install -Dm644 "$startdir/icons/deepseek-harness.svg" \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/deepseek-harness.svg"
+  install -Dm644 "$startdir/systemd/deepseek-harness-desktop.service" \
+    "$pkgdir/usr/lib/systemd/user/deepseek-harness-desktop.service"
+  install -Dm644 "$startdir/deepseek-harness.apparmor" "$pkgdir/etc/apparmor.d/deepseek-harness"
+
+  # payload 里没有 LICENSE；构建脚本未附带时跳过（正式交付前应补上游 LICENSE）。
+  if [[ -f "$startdir/LICENSE" ]]; then
+    install -Dm644 "$startdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  fi
+
+  # chrome-sandbox 基本权限；setuid 位由 .install 按内核 userns 能力决定。
+  chmod 0755 "$appdir/chrome-sandbox"
+}

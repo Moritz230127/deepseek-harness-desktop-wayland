@@ -1,0 +1,19 @@
+[Unit]
+# 可选的用户级自动启动单元；本包只安装、不 enable（`systemctl --user enable` 由用户决定）。
+Description=DeepSeek Harness Desktop (Wayland)
+Documentation=https://github.com/deepseek-ai/deepseek-harness
+After=graphical-session.target
+PartOf=graphical-session.target
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/deepseek-harness-wayland
+Restart=on-failure
+RestartSec=2
+# 给 Host/renderer 留出退出时间，避免强杀。
+TimeoutStopSec=20
+
+[Install]
+WantedBy=graphical-session.target

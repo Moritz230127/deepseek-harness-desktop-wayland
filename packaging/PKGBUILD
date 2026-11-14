@@ -1,0 +1,189 @@
+# Maintainer: Moritz230127 <moritz230127@users.noreply.github.com>
+#
+# DeepSeek Harness Linux 桌面端（全新 Wayland 构建）。
+# 从官方 dsh-v0.2.2-rc.3 源码 + 本仓库最小补丁系列构建；不沿用旧 dsh-desktop-integration 的 48 文件补丁。
+# 设计目标：忠实官方源码、原生 Wayland、NVIDIA 下渲染稳定不闪烁、无美化补丁。
+#
+# 构建前置：
+#   - nodejs / pnpm / python（pnpm 11.x；若系统 pnpm 是二进制入口会被上游脚本以 node 执行而失败，
+#     build() 会自动回退到隔离版 ~/.local/share/dsh-pnpm-11；准备命令：
+#     npm i --prefix ~/.local/share/dsh-pnpm-11 pnpm@11.28.5）
+#   - 可选：DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com makepkg -C -s --nocheck
+#   - 可选：ELECTRON_MIRROR=<镜像>/ makepkg ...（GitHub 网络不通时）
+#   - 可选：DSH_DESKTOP_LINUX_DOWNLOAD_CACHE=<已有 .desktop-build/downloads> 复用 Electron/Node/Python 缓存
+
+pkgname=deepseek-harness-desktop-wayland
+pkgver=0.2.2rc3
+pkgrel=1
+_tag='dsh-v0.2.2-rc.3'
+_commit='38a6a5c965aa99ab525161efb7cc5cf1fe62fced'
+_srcdirname="deepseek-harness-$_tag"
+pkgdesc='Official DeepSeek Harness desktop for Linux (Electron shell + bundled dsh runtime; native Wayland, NVIDIA-stable)'
+arch=('x86_64')
+url='https://github.com/deepseek-ai/deepseek-harness'
+license=('MIT')
+depends=('gtk3' 'nss' 'libnotify' 'libxtst' 'xdg-utils' 'at-spi2-core' 'libsecret' 'alsa-lib' 'dbus' 'libxcrypt-compat')
+makedepends=('nodejs' 'pnpm' 'python')
+optdepends=('libpulse: PulseAudio/PipeWire 音频输出'
+            'nvidia-utils: NVIDIA 驱动与加速'
+            'noto-fonts-cjk: 中文/日文/韩文字体显示')
+provides=('deepseek-harness-desktop')
+conflicts=('deepseek-harness-desktop-linux' 'deepseek-harness-desktop-linux-bin'
+           'deepseek-harness-desktop-linux-git' 'deepseek-harness-desktop' 'dsh-desktop-linux-bin')
+replaces=('deepseek-harness-desktop-linux')
+options=('!strip' '!debug' '!emptydirs')
+install=deepseek-harness.install
+
+source=(
+  "$_srcdirname.tar.gz::https://github.com/deepseek-ai/deepseek-harness/archive/$_tag.tar.gz"
+  # 补丁系列（按文件名顺序应用）
+  '0001-desktop-target-model-linux-x64.patch'
+  '0002-package-target-linux-x64.patch'
+  '0003-electron-builder-linux-configuration.patch'
+  '0004-prepare-target-electron-distribution.patch'
+  '0005-desktop-linux-release-settings.patch'
+  '0006-desktop-package-linux-scripts.patch'
+  '0007-desktop-host-runtime-standalone-node.patch'
+  '0008-desktop-packaging-host-runtime.patch'
+  '0009-desktop-linux-policy-opt-out.patch'
+  '0010-desktop-build-commit-release-archive.patch'
+  # 运行期收敛补丁（并行作者产出：首帧闪白/隐藏更新入口/GPU launch-failed 交 launcher/账户读取错误降级）
+  '0011-desktop-linux-window-background.patch'
+  '0012-desktop-linux-hide-update-entry.patch'
+  '0013-desktop-linux-gpu-launch-failure.patch'
+  '0014-account-expected-linux-failure.patch'
+  '0015-sidebar-released-reference-benign.patch'
+  '0016-desktop-linux-hide-menu-bar.patch'
+  # 本地打包文件必须平铺在本目录（makepkg 不支持本地 source 的子目录，实测会报
+  # "<file> 没有在创建目录中找到"）。下面的名字是 packaging/ 下的符号链接，指向
+  # launcher/、desktop/、systemd/、icons/ 里的单一来源；复制本目录去 AUR/暂存目录
+  # 请用 `cp -aL` 解引用。
+  'deepseek-harness-wayland'
+  'deepseek-harness.desktop'
+  'deepseek-harness-desktop.service'
+  'deepseek-harness.install'
+  'deepseek-harness.svg'
+  'deepseek-harness.apparmor'
+)
+sha256sums=(
+  'bf6d668e52a26edf98aa2ef7960e240c8d9afcefbad2b09887a2cb1e14001dd5'
+  'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
+  'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
+  '19c841836b9c4c8bed9459f00fe0d2ad572809e36a8ae053aaf4a1d811dda93a'   # launcher（wayland-analyst 定稿）
+  'd26f3b2d1c80c9b8ab3c9bf30f0fcff6e822b1e493d3c7ca2f945aeb3af3ae5e'   # desktop entry
+  'a141347c25118ae887f55410e9b408b4dc7c2fdf0abf50a48f823f31ffc772f1'   # systemd user unit
+  '2f1bed82d303525aae00e40ff4293928c11691abbc68998ea771809e26d81c25'   # pacman install 脚本
+  '6ea87fbbb2daeb6aba30ed07ed1e9059e0c2a39a3778d98a475b0ab05034f091'   # 图标 SVG（上游 icon-macos.svg）
+  'ac8349dd13a9802c0dbbfbf1b589916946235b1e3e0a9b75046b113632394ab4'   # AppArmor profile
+)
+
+# 找一款「入口能被 node 执行」的 pnpm 11（上游 package-target 用 `node $npm_execpath` 复起 pnpm）。
+_dsh_pnpm_usable() {
+  local pnpm=${1:-}
+  [[ -n $pnpm && -x $pnpm ]] || return 1
+  [[ "$("$pnpm" --version 2>/dev/null)" == 11.* ]] || return 1
+  local probe rc=0
+  probe="$(mktemp -d)"
+  cat >"$probe/package.json" <<'JSON'
+{ "name": "pnpm-entry-probe", "private": true, "packageManager": "pnpm@11.28.5",
+  "scripts": { "probe": "node probe.cjs" } }
+JSON
+  cat >"$probe/probe.cjs" <<'JS'
+require('node:child_process').execFileSync(process.execPath, [process.env.npm_execpath, '--version'], { stdio: 'ignore' })
+JS
+  ( cd "$probe" && "$pnpm" run --silent probe >/dev/null 2>&1 ) || rc=$?
+  rm -rf "$probe"
+  return "$rc"
+}
+
+prepare() {
+  cd "$srcdir"
+  # makepkg 失败重跑时，已修改的旧文件会被重新解包覆盖，但补丁新增的文件残留，导致同一
+  # 补丁正向/反向都打不上。直接从源码包重建工作树，prepare() 就可重复执行。
+  rm -rf "$_srcdirname"
+  bsdtar -xf "$srcdir/$_srcdirname.tar.gz" -C "$srcdir"
+  cd "$_srcdirname"
+  local p
+  for p in "$srcdir"/0*.patch; do
+    msg2 "applying $(basename "$p")"
+    patch -Np1 --no-backup-if-mismatch -i "$p" || return 1
+  done
+}
+
+build() {
+  cd "$srcdir/$_srcdirname"
+  export PATH="/usr/bin:$PATH"
+  # 构建期 Host 会写数据目录，绝不能落到用户真实的 ~/.dsh。
+  export DSH_HOME="$srcdir/dsh-home"
+  mkdir -p "$DSH_HOME"
+  # release 源码包没有 .git：显式给出提交与 dirty 状态（dirty=1 是事实，构建打了补丁）。
+  export DSH_CLIENT_COMMIT_HASH="$_commit"
+  export DSH_DESKTOP_BUILD_COMMIT="$_commit"
+  export DSH_DESKTOP_BUILD_DIRTY=1
+
+  local pnpm=''
+  if _dsh_pnpm_usable "$(command -v pnpm 2>/dev/null)"; then
+    pnpm="$(command -v pnpm)"
+  elif _dsh_pnpm_usable "$HOME/.local/share/dsh-pnpm-11/node_modules/.bin/pnpm"; then
+    pnpm="$HOME/.local/share/dsh-pnpm-11/node_modules/.bin/pnpm"
+  else
+    error "需要 pnpm 11.x 且入口可被 node 执行（npm i --prefix ~/.local/share/dsh-pnpm-11 pnpm@11.28.5）"
+    return 1
+  fi
+  msg2 "pnpm: $pnpm ($("$pnpm" --version))"
+
+  # Linux 发布设置：APP_ID 必填；内部 pnpm 走镜像源（可被环境覆盖）。
+  cat >apps/desktop/.env.linux <<EOF
+DSH_DESKTOP_APP_ID=com.deepseek.dsh
+DSH_DESKTOP_NPM_REGISTRY=${DSH_DESKTOP_NPM_REGISTRY:-https://registry.npmmirror.com}
+EOF
+
+  "$pnpm" install --frozen-lockfile
+  # 预热 Electron 二进制（~117MB），让下载失败发生在构建前。
+  node apps/desktop/node_modules/electron/install.js
+
+  if [[ -n ${DSH_DESKTOP_LINUX_DOWNLOAD_CACHE:-} ]]; then
+    install -d apps/desktop/.desktop-build/downloads
+    cp -an "$DSH_DESKTOP_LINUX_DOWNLOAD_CACHE/." apps/desktop/.desktop-build/downloads/
+  fi
+
+  "$pnpm" --dir apps/desktop run package:linux:x64:dir
+}
+
+package() {
+  cd "$srcdir/$_srcdirname"
+  local unpacked='apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/linux-unpacked'
+  if [[ ! -d $unpacked ]]; then
+    error "找不到 $unpacked（electron-builder 输出路径可能变了）"
+    return 1
+  fi
+  install -d "$pkgdir/opt/deepseek-harness-desktop-wayland"
+  cp -a "$unpacked"/. "$pkgdir/opt/deepseek-harness-desktop-wayland/"
+
+  install -d "$pkgdir/usr/bin"
+  install -Dm755 "$srcdir/deepseek-harness-wayland" "$pkgdir/usr/bin/deepseek-harness-wayland"
+  ln -s /usr/bin/deepseek-harness-wayland "$pkgdir/usr/bin/deepseek-harness"
+
+  install -Dm644 "$srcdir/deepseek-harness.desktop" "$pkgdir/usr/share/applications/deepseek-harness.desktop"
+  install -Dm644 "$srcdir/deepseek-harness-desktop.service" \
+    "$pkgdir/usr/lib/systemd/user/deepseek-harness-desktop.service"
+
+  # 应用图标：安装打包产物自带 PNG + 仓库内的 SVG（hicolor scalable）。
+  if [[ -f $unpacked/resources/icon.png ]]; then
+    install -Dm644 "$unpacked/resources/icon.png" \
+      "$pkgdir/usr/share/icons/hicolor/512x512/apps/deepseek-harness.png"
+  fi
+  install -Dm644 "$srcdir/deepseek-harness.svg" \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/deepseek-harness.svg"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+
+  # 上游 fpm 目标会在 linux-unpacked 里写 AppArmor profile；--dir 构建没有该文件，这里补一份
+  # （仓库里的模板已按新安装前缀写好）。
+  install -Dm644 "$srcdir/deepseek-harness.apparmor" "$pkgdir/etc/apparmor.d/deepseek-harness"
+
+  # chrome-sandbox 的基本权限由包内容给出；setuid 位由 .install 按内核 userns 能力决定
+  # （与上游 deb/rpm 的 postinst 一致）。
+  chmod 0755 "$pkgdir/opt/deepseek-harness-desktop-wayland/chrome-sandbox"
+}
+
+# vim: set ft=sh:

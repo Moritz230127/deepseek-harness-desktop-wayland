@@ -1,0 +1,22 @@
+Subject: [PATCH] desktop: hide the in-app update entry on Linux
+
+pacman owns updates on this package and a Linux release carries no update
+feed: the menu entry could only ever open a failure path. Windows and macOS
+keep it unchanged.
+
+---
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -1211,6 +1211,10 @@ async function main(): Promise<void> {
+       : { label: currentDesktopLocale().messages.aboutMenu, role: 'about' },
+     { type: 'separator' },
+-    { label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } },
++    // A Linux release has no update feed and pacman owns upgrades: hide the entry instead
++    // of offering an action that can only fail.
++    ...(process.platform === 'linux'
++      ? []
++      : [{ label: currentDesktopLocale().messages.checkUpdatesMenu, click: () => { void openUpdatePrompt(true) } }]),
+     ...process.platform === 'darwin' || process.platform === 'win32'
+       ? [{ label: currentDesktopLocale().messages.cliCommandMenu, click: () => { void commandManager.show() } }] : [],
+     { type: 'separator' },

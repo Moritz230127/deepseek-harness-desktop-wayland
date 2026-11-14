@@ -1,0 +1,46 @@
+# 目的：暴露 package:linux:* 脚本，并让无签名的 local 客户端构建保留官方品牌与标题。
+diff --git a/apps/desktop/package.json b/apps/desktop/package.json
+index 0c90226f..a842288a 100644
+--- a/apps/desktop/package.json
++++ b/apps/desktop/package.json
+@@ -39,6 +39,10 @@
+     "package:win:x64": "tsx scripts/package-target.ts win-x64",
+     "package:win:x64:unsigned": "tsx scripts/package-target.ts win-x64 --unsigned",
+     "package:win:x64:dir": "tsx scripts/package-target.ts win-x64 --dir",
++    "package:linux:x64": "tsx scripts/package-target.ts linux-x64 --unsigned",
++    "package:linux:x64:dir": "tsx scripts/package-target.ts linux-x64 --unsigned --dir",
++    "package:linux:arm64": "tsx scripts/package-target.ts linux-arm64 --unsigned",
++    "package:linux:arm64:dir": "tsx scripts/package-target.ts linux-arm64 --unsigned --dir",
+     "upload:mac:arm64": "tsx scripts/upload-target.ts mac-arm64",
+     "upload:mac:x64": "tsx scripts/upload-target.ts mac-x64",
+     "upload:win:x64": "tsx scripts/upload-target.ts win-x64",
+diff --git a/packages/client/ui-brand-official/src/client/index.ts b/packages/client/ui-brand-official/src/client/index.ts
+index e5dc78b0..75cc2d50 100644
+--- a/packages/client/ui-brand-official/src/client/index.ts
++++ b/packages/client/ui-brand-official/src/client/index.ts
+@@ -18,7 +18,10 @@ export function apply(ctx: ClientContext): void {
+     name: 'conversation.hero.frame',
+     id: 'pixel-whale',
+   }, PixelWhale))
+-  if (process.env.DSH_CLIENT_BUILD_PROFILE !== 'official') return
++  // Linux packages are unsigned, so packaging selects the local client profile; those
++  // release packages still carry the official brand. A build that selects no profile
++  // (a plain web build) leaves the holes to their declaring fallbacks.
++  if (process.env.DSH_CLIENT_BUILD_PROFILE === undefined) return
+   ctx.slots.inject('sidebar.brand.mark', () =>
+     ctx.slots.inject('sidebar.brand.name', function* () {
+       yield ctx.slots.register({ name: 'sidebar.brand.mark' }, OfficialBrandMark)
+diff --git a/scripts/client-build-environment.ts b/scripts/client-build-environment.ts
+index 6eed371b..646acbcd 100644
+--- a/scripts/client-build-environment.ts
++++ b/scripts/client-build-environment.ts
+@@ -206,6 +206,9 @@ export function resolveClientBuildEnvironment(
+       DSH_CLIENT_VERSION: version,
+       ...(profile === 'official' ? OFFICIAL_CLIENT_BUILD_ENVIRONMENT : {
+         DSH_CLIENT_BUILD_PROFILE: 'local',
++        // Linux packages are unsigned, so packaging selects the local profile; they keep
++        // the official product title instead of presenting as a local build.
++        DSH_CLIENT_TITLE: OFFICIAL_CLIENT_BUILD_ENVIRONMENT.DSH_CLIENT_TITLE,
+         ...(environment.DSH_CLIENT_GIT_DIRTY === 'true' ? { DSH_CLIENT_GIT_DIRTY: 'true' } : {}),
+       }),
+     }

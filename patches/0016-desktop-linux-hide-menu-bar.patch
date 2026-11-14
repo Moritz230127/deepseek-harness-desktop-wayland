@@ -1,0 +1,47 @@
+Subject: [PATCH] desktop: remove the Linux application menu bar
+
+On Linux the upstream application menu renders as a GTK strip ("应用/Edit")
+above the window content. It duplicates the in-app sidebar, wastes vertical
+space and has almost no Linux commands, so remove the application menu on
+Linux entirely (window.setMenu(null) is not enough with an application menu
+present). Keep DevTools on F12, which the menu used to own.
+
+---
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -1252,6 +1252,13 @@
+     devToolsF12Shortcut,
+   ]
+   const refreshApplicationMenu = (): void => {
++    // Linux renders the application menu as a GTK strip above the content. It duplicates the
++    // in-app sidebar, wastes vertical space and has no Linux-only commands; remove it entirely.
++    // DevTools stays reachable through the F12 hook registered right after the initial setup.
++    if (process.platform === 'linux') {
++      Menu.setApplicationMenu(null)
++      return
++    }
+     Menu.setApplicationMenu(Menu.buildFromTemplate(process.platform === 'win32'
+       ? windowsDevToolsShortcuts : [{
+         label: darwin ? app.name : currentDesktopLocale().messages.application,
+@@ -1260,6 +1267,18 @@
+     tray?.relabel()
+   }
+   refreshApplicationMenu()
++  // The application menu owned the F12 accelerator on Linux; keep DevTools accessible now that
++  // the menu bar is gone.
++  if (process.platform === 'linux') {
++    app.on('browser-window-created', (_event, window) => {
++      window.webContents.on('before-input-event', (event, input) => {
++        if (input.type === 'keyDown' && input.key === 'F12') {
++          window.webContents.toggleDevTools()
++          event.preventDefault()
++        }
++      })
++    })
++  }
+   const trayIconPath = development ? join(app.getAppPath(), 'resources', 'tray-windows.ico') : join(process.resourcesPath, 'tray.ico')
+   if (process.platform === 'win32') {
+     // The tray is the way back to a hidden window; without it, relaunching the application still focuses it.
+
+-- 
+2.51.0

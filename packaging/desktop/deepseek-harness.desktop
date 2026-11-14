@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=DeepSeek Harness
+GenericName=AI Coding Assistant
+Comment=Desktop shell for the DeepSeek Harness agent runtime
+Exec=/usr/bin/deepseek-harness-wayland %U
+TryExec=/usr/bin/deepseek-harness-wayland
+Icon=deepseek-harness
+Terminal=false
+Categories=Development;Utility;
+MimeType=x-scheme-handler/dsh;
+StartupNotify=true
+StartupWMClass=deepseek-harness
+Keywords=DeepSeek;Harness;AI;Agent;Coding;

@@ -1,0 +1,58 @@
+# 目的：release 源码包没有 .git：打包提交与 dirty 由环境变量录制，并给出明确的缺失报错。
+diff --git a/apps/desktop/scripts/desktop-build-commit.d.mts b/apps/desktop/scripts/desktop-build-commit.d.mts
+index 82118e24..57a792cb 100644
+--- a/apps/desktop/scripts/desktop-build-commit.d.mts
++++ b/apps/desktop/scripts/desktop-build-commit.d.mts
+@@ -11,7 +11,7 @@ export const DESKTOP_BUILD_COMMIT_ENV: 'DSH_DESKTOP_BUILD_COMMIT'
+ export const DESKTOP_BUILD_DIRTY_ENV: 'DSH_DESKTOP_BUILD_DIRTY'
+ 
+ /**
+- * Read the checkout's current commit and whether it carries uncommitted changes.
++ * Read the commit being packaged and whether its tree carried uncommitted changes.
+  * @param repositoryRoot - Directory to inspect.
+  * @returns The commit being packaged and whether its tree was modified.
+  */
+diff --git a/apps/desktop/scripts/desktop-build-commit.mjs b/apps/desktop/scripts/desktop-build-commit.mjs
+index 28d7cda5..3cb19643 100644
+--- a/apps/desktop/scripts/desktop-build-commit.mjs
++++ b/apps/desktop/scripts/desktop-build-commit.mjs
+@@ -7,7 +7,7 @@
+  * child process, which run against a build tree rather than a checkout.
+  */
+ 
+-import { execFileSync } from 'node:child_process'
++import { execFileSync, spawnSync } from 'node:child_process'
+ 
+ /** Environment variable that carries the packaged commit. */
+ export const DESKTOP_BUILD_COMMIT_ENV = 'DSH_DESKTOP_BUILD_COMMIT'
+@@ -16,11 +16,29 @@ export const DESKTOP_BUILD_COMMIT_ENV = 'DSH_DESKTOP_BUILD_COMMIT'
+ export const DESKTOP_BUILD_DIRTY_ENV = 'DSH_DESKTOP_BUILD_DIRTY'
+ 
+ /**
+- * Read the checkout's current commit and whether it carries uncommitted changes.
++ * Read the commit being packaged and whether its tree carried uncommitted changes.
++ *
++ * A packaging run records the pair once and passes it to every child process, which run against a
++ * build tree rather than a checkout — a build tree that happens to sit inside an unrelated checkout
++ * would otherwise be mistaken for the sources being packaged. With no recording, read the checkout;
++ * a directory that is neither refuses the build.
+  * @param {string} repositoryRoot - Directory to inspect.
+  * @returns {{ commit: string, dirty: boolean }} The commit being packaged and whether its tree was modified.
+  */
+ export function readDesktopBuildCommit(repositoryRoot) {
++  const recorded = resolveDesktopBuildCommit(process.env)
++  if (recorded !== undefined) return recorded
++  const probe = spawnSync('git', ['rev-parse', '--is-inside-work-tree'], {
++    cwd: repositoryRoot,
++    encoding: 'utf8',
++    stdio: ['ignore', 'pipe', 'ignore'],
++  })
++  if (probe.error !== undefined || probe.status !== 0 || probe.stdout.trim() !== 'true') {
++    throw new Error(
++      `desktop build commit: ${repositoryRoot} is not a Git checkout; `
++      + `set ${DESKTOP_BUILD_COMMIT_ENV} and ${DESKTOP_BUILD_DIRTY_ENV} to package it`,
++    )
++  }
+   const git = (args) => execFileSync('git', args, { cwd: repositoryRoot, encoding: 'utf8' }).trim()
+   return {
+     commit: git(['rev-parse', 'HEAD']),
