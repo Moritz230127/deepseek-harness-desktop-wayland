@@ -1,7 +1,7 @@
 # deepseek-harness-desktop-wayland
 
 [![Upstream](https://img.shields.io/badge/upstream-deepseek--ai%2Fdeepseek--harness-blue)](https://github.com/deepseek-ai/deepseek-harness)
-[![Version](https://img.shields.io/badge/desktop-0.2.2rc3--1-informational)](#产物)
+[![Version](https://img.shields.io/badge/desktop-0.2.2rc3--2-informational)](#产物)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 基于官方 **DeepSeek Harness `dsh-v0.2.2-rc.3`** 源码、面向 **Arch Linux / niri (Wayland) / NVIDIA** 的全新 Linux 桌面端构建。
@@ -24,14 +24,14 @@
 | 项 | 值 |
 |---|---|
 | 包名 | `deepseek-harness-desktop-wayland` |
-| 版本 | `0.2.2rc3-1`（上游 `dsh-v0.2.2-rc.3`，commit `38a6a5c9…`） |
+| 版本 | `0.2.2rc3-2`（上游 `dsh-v0.2.2-rc.3`，commit `38a6a5c9…`） |
 | 安装根 | `/opt/deepseek-harness-desktop-wayland`（1.12 GB 解包） |
 | 启动器 | `/usr/bin/deepseek-harness-wayland`（+ 兼容 symlink `/usr/bin/deepseek-harness`） |
-| pacman 包 | `deepseek-harness-desktop-wayland-0.2.2rc3-1-x86_64.pkg.tar.zst`（341 MB） |
-| sha256 | `63065ea76b04f649f9c34fb38e03f55742b38da2fbddc0194375d60878aaf888` |
+| pacman 包 | `deepseek-harness-desktop-wayland-0.2.2rc3-2-x86_64.pkg.tar.zst`（341 MB） |
+| sha256 | `c91e2d1e060e6957d492a6552f404ac0836da24b18e3ea8ac065c41900fe7935` |
 | 官方归档 sha256 | `bf6d668e52a26edf98aa2ef7960e240c8d9afcefbad2b09887a2cb1e14001dd5` |
 
-本机分发：已发布到 `[localrepo]`（`/srv/localrepo`）。GitHub Release：<https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/v0.2.2rc3-1>（含同名二进制包、SHA256SUMS、metadata.env）。
+本机分发：已发布到 `[localrepo]`（`/srv/localrepo`）。GitHub Release：<https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/v0.2.2rc3-2>（含同名二进制包、SHA256SUMS、metadata.env）。
 
 ## 安装 / 回滚
 
@@ -81,7 +81,7 @@ sudo pacman -S deepseek-harness-desktop-linux   # 旧包仍在 localrepo
 | GPU 渲染 / 硬解 | ✅ `gpu_compositing=enabled`、`video_decode=enabled`、ANGLE NVIDIA OpenGL；`video_encode` 仍软件（Chromium/NVIDIA 限制） |
 | 无白闪 | ✅ Linux 主窗口/welcome 首帧背景色跟随主题 |
 | DevTools console | ✅ fresh profile：0 error / 0 warning；用户 profile（移除 Inspector bundle）：0 error / 0 warning |
-| 补丁规模 | 16 个：构建启用 0001–0010（43 文件 / +414 −125）+ 运行期 0011–0016（199 行） |
+| 补丁规模 | 17 个：构建启用 0001–0010（43 文件 / +414 −125）+ 运行期 0011–0017（约 260 行） |
 
 完整报告：[docs/build-verification.md](docs/build-verification.md) · [docs/console-errors.md](docs/console-errors.md) · [docs/wayland-stability.md](docs/wayland-stability.md) · [docs/patch-design.md](docs/patch-design.md)
 
@@ -153,6 +153,7 @@ ci/build-wayland.sh <upstream-tree> --dir   # 需仍为已应用补丁的树
 | 0014 | account profile 读取失败在 Linux 降级为 info（无账户后端属预期） |
 | 0015 | 会话 reference 已释放属正常 teardown，不再打 error |
 | 0016 | Linux 移除 GTK 应用菜单条（`Menu.setApplicationMenu(null)`），F12 保留 DevTools |
+| 0017 | `workspace/changes` 摘要缺失（Host 重启后旧轮次）改回 `200 null`，客户端仍按 missing 渲染，消除浏览器网络层 404 |
 
 每个补丁都验证过：pristine rc.3 上按序 `git apply --check` 全通过；`patch -Np1` 通过；`makepkg --nodeps --nobuild` 的 prepare 阶段通过。
 
@@ -168,7 +169,7 @@ ci/build-wayland.sh <upstream-tree> --dir   # 需仍为已应用补丁的树
 
 ```
 ci/          build-wayland.sh（构建）/ package-wayland.sh（打包）
-patches/     16 个补丁（0001–0016）
+patches/     17 个补丁（0001–0016）
 packaging/   PKGBUILD（源码包）、PKGBUILD.prebuilt（快速交付）、launcher、desktop、systemd、icons、AppArmor、install
 docs/        验证/归因/补丁设计文档 + 证据截图
 launcher/    launcher 副本（研究交付位置）

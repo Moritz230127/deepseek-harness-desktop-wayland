@@ -145,7 +145,7 @@ sudo pacman -S deepseek-harness-desktop-wayland     # 按提示替换旧 deepsee
 
 ---
 
-## 8. 2026-11-14 17:38 后续：用户 profile 的 Inspector 残留错误已处理
+## 8. 2026-11-14 17:38 用户 profile 的 Inspector 残留错误（已处理）
 
 安装新包并重启后，用户 profile 仍报 console 错误（截图：`ws://127.0.0.1:9230/ingest` 失败 ×N + `dsh-app://app/api/changes.summary?...&seq=...` 404 ×2）。
 
@@ -164,4 +164,22 @@ cp ~/.dsh/profiles/desktop/package.json ~/.dsh/profiles/desktop/package.json.bak
 **验证**：用同一新包 + 去除该 bundle 的用户 profile 克隆做隔离 CDP 捕获（20 s）：**0 console error / 0 warning，0 个 >=400 网络请求**。同时 9230 无认证 CDP 端口不再监听（安全面收窄）。
 
 如需保留 Inspector 功能，可在后续版本用代码补丁把 `dsh-app://app` 加入 ingest origin 白名单（token 仍为随机口令），但 `changes.summary` 404 属上游对旧会话数据的预期处理，仍可能出现。
+
+---
+
+## 9. 2026-11-14 18:00 · 0.2.2rc3-2：console 零噪音收尾
+
+rc3-1 用户重启后仍有 3 条非错误杂音：1 条 `[deepseek-account] account read failed`（rc3-1 已从 error 降为 info）与 2 条 `changes.summary` 404。rc3-2 进一步处理：
+
+| 现象 | 根因 | rc3-2 修复 |
+|---|---|---|
+| `[deepseek-account] account read failed`（info） | Linux 无账户后端，读取失败属预期；rc3-1 只是把 error 降为 info | 补丁 0014 更新：Linux 上**完全不记录**（其它平台仍 `console.error`；UI 继续渲染“资料不可用”） |
+| `GET /api/changes.summary?…&seq=…` 404 ×2 | `workspace/changes` 摘要仅存于 Host 进程内存；Host 重启后旧轮次的改动卡片请求摘要，路由按设计返回 404，浏览器网络层必然记录错误 | 补丁 0017：摘要缺失时返回 `200 null`；客户端 `changesSummary` 解码仍把它映射为 `missing`，**UI 行为不变**，不再产生网络错误 |
+
+**验证（同一官方 rc.3 源码 + 17 补丁构建 / 0.2.2rc3-2 包）**：
+- 隔离实例 + 当前用户 profile 克隆，CDP 捕获 15 s：**CONSOLE_EVENTS = 0**（无 error/warning/info、无 ≥400 网络请求）；
+- 对旧摘要坐标直接 fetch：`fetch('/api/changes.summary?sessionId=session-…&seq=2597')` → `{"status":200,"body":"null"}`；
+- 用户需 `sudo pacman -Sy && sudo pacman -S deepseek-harness-desktop-wayland` 升级到 `0.2.2rc3-2` 后重启桌面端生效。
+
+补丁总数：17（0014 更新、0017 新增）。
 

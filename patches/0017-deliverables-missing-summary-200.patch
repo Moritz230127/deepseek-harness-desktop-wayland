@@ -1,0 +1,34 @@
+Subject: [PATCH] deliverables: answer a missing change summary with 200/null
+
+`workspace/changes` summaries live only in the Host process; after a Host
+restart an old turn keeps its change card but the summary is gone. The route
+answered 404, so DevTools logged an expected failed request whenever such a
+card rendered. The client already treats a null body as the expected "missing"
+state; answer 200/null and keep the console clean. No UI behaviour changes.
+
+---
+--- a/packages/client/ui-deliverables/src/present-open.ts
++++ b/packages/client/ui-deliverables/src/present-open.ts
+@@ -127,14 +127,17 @@
+   }
+ }
+ 
+-/** The summary one `workspace/changes` event announced, without the Host working directory; 404 once the Host no longer serves it. */
++/** The summary one `workspace/changes` event announced, without the Host working directory; null once the Host no longer serves it. */
+ function handleChangesSummary(ctx: Context, request: Request): Response {
+   const query = new URL(request.url).searchParams
+   const id = query.get('sessionId')
+   const seq = coordinate(query.get('seq'))
+   if (!id || seq === undefined) return new Response('Invalid change summary coordinates.', { status: 400 })
+   const summary = ctx.workspaceChanges.summary(id as SessionId, seq)
+-  if (summary === undefined) return new Response('Change summary unavailable.', { status: 404 })
++  // Host-scoped summaries disappear when the Host restarts. The client already treats a null
++  // body as the expected "missing" state, so answer 200/null instead of an expected 404 that
++  // DevTools would still report as a failed network request.
++  if (summary === undefined) return Response.json(null, { headers: { 'cache-control': 'no-store' } })
+   const { turn, files, total, added, deleted } = summary
+   return Response.json({ turn, files, total, added, deleted } satisfies ChangesSummary, { headers: { 'cache-control': 'no-store' } })
+ }
+
+-- 
+2.51.0

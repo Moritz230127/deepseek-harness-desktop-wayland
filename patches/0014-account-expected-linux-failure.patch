@@ -1,25 +1,29 @@
-Subject: [PATCH] account: keep the expected Linux account-read failure out of the error channel
+Subject: [PATCH] account: keep the expected Linux account-read failure out of the console
 
 The Desktop account backend only exists on Windows/macOS; on Linux every
 `getProfile`/`getBalance` read fails by design. The settings-account client
-logged each expected failure as `console.error`, so a Linux session with the
-account UI loaded always carried one devtools error at startup. Keep the
-diagnostic on Linux at info level and leave every other platform unchanged.
+logged each expected failure, so a Linux session with the account UI loaded
+always carried a console entry at startup. Keep the diagnostic on every other
+platform and stay silent on Linux (the UI already renders the unavailable
+state).
 
 ---
-diff --git a/packages/client/ui-settings-account/src/client/index.ts b/packages/client/ui-settings-account/src/client/index.ts
 --- a/packages/client/ui-settings-account/src/client/index.ts
 +++ b/packages/client/ui-settings-account/src/client/index.ts
-@@ -74,6 +74,11 @@ export function apply(ctx: ClientContext): void {
+@@ -74,7 +74,12 @@
+       let value: AccountDetails[K] | null
        try { value = await query() }
        catch { value = { status: 'failed' } }
 -      if (value?.status === 'failed') console.error('[deepseek-account] account read failed', { field })
 +      if (value?.status === 'failed') {
-+        // Linux Desktop has no account backend, so a failed read there is an expected
-+        // capability gap rather than an error. Keep the diagnostic, but off the error channel.
++        // Linux Desktop has no account backend: the failure is an expected capability gap and the
++        // UI already renders the unavailable state, so do not log it on Linux at all.
 +        const linuxDesktop = typeof navigator !== 'undefined' && /Linux/u.test(navigator.userAgent)
-+        ;(linuxDesktop ? console.info : console.error)('[deepseek-account] account read failed', { field })
++        if (!linuxDesktop) console.error('[deepseek-account] account read failed', { field })
 +      }
        if (generation === revision && value !== null) publish({ ...snapshot, details: { ...snapshot.details, [field]: value } })
      }
      const request = Promise.all([
+
+-- 
+2.51.0

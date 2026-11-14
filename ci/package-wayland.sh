@@ -5,9 +5,10 @@
 # 产物：<out-dir>/deepseek-harness-desktop-wayland-<pkgver>-1-x86_64.pkg.tar.zst
 set -euo pipefail
 
-UNPACKED=${1:?usage: package-wayland.sh <linux-unpacked> <out-dir> [pkgver]}
-OUT=${2:?usage: package-wayland.sh <linux-unpacked> <out-dir> [pkgver]}
+UNPACKED=${1:?usage: package-wayland.sh <linux-unpacked> <out-dir> [pkgver] [pkgrel]}
+OUT=${2:?usage: package-wayland.sh <linux-unpacked> <out-dir> [pkgver] [pkgrel]}
 PKGVER=${3:-0.2.2rc3}
+PKGREL=${4:-1}
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WORK=${WORK:-/home/Arch/dsh-builds/rc3-wayland/package-work}
 PKGNAME=deepseek-harness-desktop-wayland
@@ -44,7 +45,7 @@ cp -a "$ROOT/packaging/launcher" "$ROOT/packaging/desktop" "$ROOT/packaging/syst
   cp "$ROOT/packaging/deepseek-harness.apparmor" "$ROOT/packaging/deepseek-harness.install" "$BD/"
 }
 chmod +x "$BD/launcher/deepseek-harness" 2>/dev/null || true
-sed -i "s/^pkgver=.*/pkgver=$PKGVER/" "$BD/PKGBUILD"
+sed -i -e "s/^pkgver=.*/pkgver=$PKGVER/" -e "s/^pkgrel=.*/pkgrel=$PKGREL/" "$BD/PKGBUILD"
 cp "$WORK/dsh-payload.tar.zst" "$BD/"
 
 # 3) makepkg（只打包，不重建）
