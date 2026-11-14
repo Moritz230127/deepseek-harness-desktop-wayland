@@ -31,7 +31,7 @@
 | sha256 | `63065ea76b04f649f9c34fb38e03f55742b38da2fbddc0194375d60878aaf888` |
 | 官方归档 sha256 | `bf6d668e52a26edf98aa2ef7960e240c8d9afcefbad2b09887a2cb1e14001dd5` |
 
-本机分发：已发布到 `[localrepo]`（`/srv/localrepo`）；GitHub Releases 提供同名二进制包与 SHA256SUMS。
+本机分发：已发布到 `[localrepo]`（`/srv/localrepo`）。GitHub Release：<https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/v0.2.2rc3-1>（含同名二进制包、SHA256SUMS、metadata.env）。
 
 ## 安装 / 回滚
 
