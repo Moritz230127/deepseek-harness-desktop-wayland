@@ -170,6 +170,12 @@ launcher/    launcher 副本（研究交付位置）
 reference/   ffyfox-patches 参考基线（MIT，未直接作为运行时补丁）
 ```
 
+## 发布与维护
+
+- 本机 localrepo 发布与 GitHub Release 流程见 [docs/publish.md](docs/publish.md)。
+- 仓库默认 **private**；需要公开时：`gh repo edit --visibility public --accept-visibility-change-consequences`。
+- 本机 git 全局配置了 `gh-proxy` 的 `insteadOf` 重写，推送需绕过（详见 docs/publish.md 的命令）。
+
 ## 许可与致谢
 
 - 上游：[deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（MIT）
