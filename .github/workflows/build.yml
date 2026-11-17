@@ -2,8 +2,9 @@ name: build-desktop
 
 on:
   schedule:
-    # 02:00 Asia/Shanghai；GitHub 的 cron 可能延迟，不影响正确性。
-    - cron: '0 18 * * *'
+    # 每 6 小时检查一次（UTC 00/06/12/18 = CST 08/14/20/02）。
+    # 只有相关路径变化且上游 SHA 与上次构建不同才会真正构建；GitHub cron 可能延迟。
+    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       ref:

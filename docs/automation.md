@@ -16,7 +16,7 @@ pkgver = <上游 package.json 版本>.r<相对最近 tag 的提交数>.g<短 SHA
 - `pkgver` 里的 SHA 是 40 位 commit；`source=` 直接指向
   `https://github.com/deepseek-ai/deepseek-harness/archive/<sha>.tar.gz`，构建可复现。
 - 同一个上游 SHA、同一套补丁重复构建时，把 `pkgrel` 加一。
-- 不追每个 commit：工作流每天检查一次，只有相关路径变化且 SHA 与上一次发布不同才构建。
+- 不追每个 commit：工作流每 6 小时检查一次，只有相关路径变化且 SHA 与上一次构建不同才构建。
 
 ## 发布模型：一个 rolling Release
 
@@ -155,7 +155,7 @@ sudo pacman -U /srv/localrepo/deepseek-harness-desktop-wayland-<旧版本>-x86_6
 ## 成本与限制
 
 - 公开仓库：Actions 分钟数免费；私有仓库：Free 计划 2,000 分钟/月。
-  一次冷构建约 30–50 分钟，热缓存约 20–30 分钟；每天最多一次，通常远低于额度。
+  一次实际构建约 12 分钟（2026-11-17 实测）；6 小时检查、最多 4 次/天，约 48 分钟/天、1,440 分钟/月。私有仓库 Free 额度 2,000 分钟/月，余量不大；长期建议公开仓库。
 - 单个 release 持有多个版本化包，每个约 341 MB；工作流只保留最近 3 个。
 - CI 不保存 YubiKey 私钥，也不签名 pacman 包；本机 `[localrepo]` 是 `SigLevel = Optional TrustAll`，
   依赖 HTTPS + `SHA256SUMS` 校验。需要签名时在本机入库阶段用 `repo-add -s`。
