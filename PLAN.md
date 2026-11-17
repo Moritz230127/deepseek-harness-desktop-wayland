@@ -57,7 +57,7 @@ work/          本地构建镜像/临时（gitignore）
 
 - 不 kill/重启当前运行的旧 Desktop（PID 4821/5144，当前会话在其中）；测试实例必须隔离并清理。
 - 不修改 `/opt`、旧仓库、真实 `~/.dsh`；测试 profile 用 /tmp 副本。
-- 包发布走 `dsh-root` 窗口 + `/usr/local/bin/dsh-localrepo-publish`；安装由用户执行 `sudo pacman -Syu`。
+- 包发布走 GitHub Actions + 本机 `ci/sync-localrepo.sh`；安装由用户执行 `sudo pacman -Syu`。
 - 安全红线：不提交任何凭据；测试实例用完即清理。
 
 ## 6. 验收（最终）

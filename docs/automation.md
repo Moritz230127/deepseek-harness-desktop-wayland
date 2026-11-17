@@ -18,6 +18,26 @@ pkgver = <上游 package.json 版本>.r<相对最近 tag 的提交数>.g<短 SHA
 - 同一个上游 SHA、同一套补丁重复构建时，把 `pkgrel` 加一。
 - 不追每个 commit：工作流每天检查一次，只有相关路径变化且 SHA 与上一次发布不同才构建。
 
+## 发布模型：一个 rolling Release
+
+追踪 git 时**不能**给每个 commit 建 release/tag：一年会有上千个 tag，`latest` 失去意义，
+341 MB 的包也会把 release 列表撑爆。本仓库只保留**一个固定 tag 的 release**：
+
+```
+tag: rolling
+assets:
+  deepseek-harness-desktop-wayland-<pkgver>-<pkgrel>-x86_64.pkg.tar.zst
+  dsh.db          # pacman repo 数据库（repo-add 生成，只指向当前包）
+  latest          # pkgver/pkgrel/artifact/upstream_sha，供本机同步读取
+  metadata.env
+  SHA256SUMS
+```
+
+- 包文件名带版本；旧包资产保留最近 3 个，回滚可按 URL 直接 `pacman -U`。
+- `dsh.db` 每次构建覆盖；`repo-add` 在 CI 的 Arch 容器里执行。
+- 公开仓库可以直接把 release 当 pacman `Server`（见 `docs/publish.md`）；
+  私有仓库用 `ci/sync-localrepo.sh` 下载。
+
 ## 工作流
 
 `.github/workflows/build.yml`：
@@ -26,7 +46,7 @@ pkgver = <上游 package.json 版本>.r<相对最近 tag 的提交数>.g<短 SHA
    - `gh api commits/<ref>` 解析 SHA、提交时间；
    - 以最近一次上游 release tag 为基线，`compare` 得到 `ahead_by`；
    - 读取 `apps/desktop/package.json` 的版本，生成 `pkgver`；
-   - 若同 `pkgver-pkgrel` 的 release 已存在，或上游 SHA 与上次发布相同，跳过；
+   - 读取 `rolling` release 的 `metadata.env`；上游 SHA 与上次构建相同则跳过；
    - 若 `compare` 显示只改了文档/测试（且文件数 < 300），跳过；
    - 下载上游 archive，算 `sha256`。
 2. **build**（约 25–50 分钟）
@@ -35,8 +55,9 @@ pkgver = <上游 package.json 版本>.r<相对最近 tag 的提交数>.g<短 SHA
      不会浪费后面的构建时间；
    - `build()` 跑上游的 `package:linux:x64:dir`。
 3. **publish**
-   - 上传 `.pkg.tar.zst`、`SHA256SUMS`、`metadata.env` 到 GitHub Release；
-   - release notes 带上游 commit 列表和补丁指纹。
+   - 更新唯一的 `rolling` release：上传版本化包、`dsh.db`、`latest`、`SHA256SUMS`、`metadata.env`；
+   - release notes 带上游 commit 列表、补丁指纹和 pacman `Server` 示例；
+   - 只保留最近 3 个 `.pkg.tar.zst` 资产。
 
 手动触发：
 
@@ -121,7 +142,8 @@ cd /tmp/pkgtest && makepkg --nobuild --nocheck --nodeps
 
 ## 回滚
 
-- GitHub Release 保留历史包；`/srv/localrepo` 里的旧 `.pkg.tar.zst` 不会因 `repo-add` 消失。
+- `rolling` release 保留最近 3 个版本化包；`/srv/localrepo` 里的旧 `.pkg.tar.zst` 不会因 `repo-add` 消失。
+- 公开仓库的旧包可直接 `sudo pacman -U https://github.com/<owner>/<repo>/releases/download/rolling/<旧文件名>`。
 - 回滚到上一版：
 
 ```bash
@@ -134,7 +156,7 @@ sudo pacman -U /srv/localrepo/deepseek-harness-desktop-wayland-<旧版本>-x86_6
 
 - 公开仓库：Actions 分钟数免费；私有仓库：Free 计划 2,000 分钟/月。
   一次冷构建约 30–50 分钟，热缓存约 20–30 分钟；每天最多一次，通常远低于额度。
-- Release 资产每个约 341 MB；建议只保留最近 3–5 个版本。
+- 单个 release 持有多个版本化包，每个约 341 MB；工作流只保留最近 3 个。
 - CI 不保存 YubiKey 私钥，也不签名 pacman 包；本机 `[localrepo]` 是 `SigLevel = Optional TrustAll`，
   依赖 HTTPS + `SHA256SUMS` 校验。需要签名时在本机入库阶段用 `repo-add -s`。
 - `master` 可能短暂不可构建；工作流失败不会产生新 Release，本机继续用上一版。

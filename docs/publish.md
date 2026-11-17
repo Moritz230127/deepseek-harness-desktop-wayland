@@ -17,7 +17,7 @@ gh workflow run build-desktop -R ... -f pkgrel=2 -f force=true
 
 1. 解析上游 commit 和 `pkgver`；
 2. 在 Arch 容器里 `makepkg`；
-3. 上传包、`SHA256SUMS`、`metadata.env` 到 GitHub Release。
+3. 更新唯一的 `rolling` Release：版本化包、`dsh.db`、`latest`、`SHA256SUMS`、`metadata.env`。
 
 本机入库：
 
@@ -42,16 +42,39 @@ makepkg -C -s --nocheck
 ls -lh deepseek-harness-desktop-wayland-*.pkg.tar.zst
 ```
 
-## 发布到 GitHub
+## 发布到 GitHub（一个 rolling Release）
+
+追踪 git 时不要为每个 commit 建 release/tag。固定 tag `rolling`，资产用版本化文件名：
 
 ```bash
-gh release create "v<pkgver>-<pkgrel>" \
-  deepseek-harness-desktop-wayland-<pkgver>-<pkgrel>-x86_64.pkg.tar.zst \
-  SHA256SUMS metadata.env \
+# 在 CI 产出的 out/ 目录：包 + dsh.db + latest + metadata.env + SHA256SUMS
+gh release create rolling out/*.pkg.tar.zst out/dsh.db out/latest \
+  out/metadata.env out/SHA256SUMS \
   -R Moritz230127/deepseek-harness-desktop-wayland \
-  --title "deepseek-harness-desktop-wayland <pkgver>-<pkgrel> (rolling)" \
+  --prerelease \
+  --title "rolling: deepseek-harness-desktop-wayland <pkgver>-<pkgrel>" \
   --notes-file release-notes.md
+# 已存在时
+gh release upload rolling out/*.pkg.tar.zst out/dsh.db out/latest \
+  out/metadata.env out/SHA256SUMS -R ... --clobber
 ```
+
+## 公开仓库：直接把 Release 当 pacman 源
+
+仓库设为 public 后，GitHub Release 资产可以直接作为 pacman 的 `Server`，不需要本机 repo：
+
+```ini
+[dsh]
+SigLevel = Optional TrustAll
+Server = https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/download/rolling
+```
+
+```bash
+sudo pacman -Syy
+sudo pacman -S deepseek-harness-desktop-wayland
+```
+
+私有仓库不能这样用（pacman 不会带 GitHub token），用 `ci/sync-localrepo.sh` 走 `gh` 下载。
 
 仓库默认 private。公开可获得无限制 Actions 分钟数，但先确认没有个人信息/凭据：
 

@@ -31,7 +31,7 @@
 | sha256 | `c91e2d1e060e6957d492a6552f404ac0836da24b18e3ea8ac065c41900fe7935` |
 | 官方归档 sha256 | `bf6d668e52a26edf98aa2ef7960e240c8d9afcefbad2b09887a2cb1e14001dd5` |
 
-> 上表是 rc.3 基线；rolling 版本形如 `0.2.2rc3.r608.g39163dd-1`（上游 master commit + 补丁），由 GitHub Actions 自动发布。
+> 上表是 rc.3 基线；rolling 版本形如 `0.2.2rc3.r608.g39163dd-1`（上游 master commit + 补丁），由 GitHub Actions 自动发布到固定 tag 的 [rolling Release](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/rolling)。
 
 本机分发：已发布到 `[localrepo]`（`/srv/localrepo`）。GitHub Release：<https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/v0.2.2rc3-2>（含同名二进制包、SHA256SUMS、metadata.env）。
 
@@ -188,6 +188,7 @@ reference/   ffyfox-patches 参考基线（MIT，未直接作为运行时补丁�
 ## 发布与维护
 
 - 自动构建（追踪上游 `master`）、版本规则、补丁 rebase 流程见 [docs/automation.md](docs/automation.md)。
+- 发布使用固定的 `rolling` Release（含版本化包、`dsh.db`、`latest`），不会为每个 commit 建 tag。
 - 手工发布与 GitHub 推送见 [docs/publish.md](docs/publish.md)。
 - 仓库默认 **private**；需要公开时：`gh repo edit --visibility public --accept-visibility-change-consequences`。
 - 本机 git 全局配置了 `gh-proxy` 的 `insteadOf` 重写，推送需绕过（详见 docs/publish.md 的命令）。

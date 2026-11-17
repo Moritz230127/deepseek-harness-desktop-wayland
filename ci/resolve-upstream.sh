@@ -57,20 +57,19 @@ pkgver="${base}.r${ahead}.g${short}"
 echo "    base=$base ahead=$ahead pkgver=$pkgver"
 
 build=true
-if [[ $force != true ]] && gh release view "v${pkgver}-${pkgrel}" \
-  -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-  echo "==> release v${pkgver}-${pkgrel} 已存在，跳过"
-  build=false
-fi
-
-# 与上一次构建比较：同一个 SHA 不重复构建；只有文档/测试变更也跳过。
-last_tag=$(gh release view -R "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null || true)
+rolling=rolling
 last_sha=''
-if [[ -n $last_tag ]]; then
+last_pkgver=''
+if gh release view "$rolling" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
   mkdir -p "$tmp/last"
-  gh release download "$last_tag" -R "$GITHUB_REPOSITORY" -p metadata.env -D "$tmp/last" 2>/dev/null || true
+  gh release download "$rolling" -R "$GITHUB_REPOSITORY" \
+    -p metadata.env -p latest -D "$tmp/last" 2>/dev/null || true
   if [[ -f $tmp/last/metadata.env ]]; then
     last_sha=$(sed -n 's/^upstream_sha=//p' "$tmp/last/metadata.env" | head -1)
+  fi
+  if [[ -f $tmp/last/latest ]]; then
+    last_pkgver=$(sed -n 's/^pkgver=//p' "$tmp/last/latest" | head -1)
+    echo "    last_pkgver=$last_pkgver"
   fi
 fi
 
@@ -83,7 +82,7 @@ if [[ $build == true && -n $last_sha && $last_sha != "$sha" && $force != true ]]
   files=$(gh api "repos/$upstream/compare/$last_sha...$sha" --jq '.files[].filename' 2>/dev/null || true)
   count=$(printf '%s\n' "$files" | sed '/^$/d' | wc -l)
   if [[ $count -gt 0 && $count -lt 300 ]] \
-    && ! printf '%s\n' "$files" | grep -qE '^(apps/desktop|apps/desktop-host|apps/desktop-publisher|packages/|pnpm-lock\.yaml|package\.json|pnpm-workspace\.yaml|scripts/|patches/|packaging/)'; then
+    && ! printf '%s\n' "$files" | grep -qE '^(apps/desktop|apps/desktop-host|apps/desktop-publisher|packages/|pnpm-lock\.yaml|package\.json|pnpm-workspace\.yaml|scripts/)'; then
     echo "==> 只有文档/测试变更，跳过构建"
     build=false
   fi

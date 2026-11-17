@@ -40,5 +40,10 @@ su builder -c "cd /w && \
   PKGDEST='/w/out' \
   ./ci/makepkg.sh"
 
-echo "==> artifacts"
-ls -lh /w/out
+echo "==> pacman repo db"
+cd /w/out
+repo-add --quiet dsh.db.tar.gz ./*.pkg.tar.zst
+# repo-add 留下 dsh.db -> dsh.db.tar.gz 的符号链接；Release 资产需要普通文件。
+cp --dereference dsh.db dsh.db.file
+mv dsh.db.file dsh.db
+ls -lh
