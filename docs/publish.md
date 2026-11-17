@@ -1,53 +1,69 @@
-# 发布流程（本机 localrepo + GitHub）
+# 发布流程
 
-## 1. 构建
+本仓库默认由 GitHub Actions 自动构建并发布，见 [automation.md](automation.md)。
+下面的手工命令只用于调试或工作流不可用时。
+
+## 自动（推荐）
 
 ```bash
-# 官方归档 + 补丁应用到工作树后
-ci/build-wayland.sh <upstream-tree> --dir
-# 产物：<upstream-tree>/apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/linux-unpacked
+# 默认追 master；也可以 -f ref=<tag|sha>
+gh workflow run build-desktop -R Moritz230127/deepseek-harness-desktop-wayland
+
+# 补丁变更、上游 SHA 不变
+gh workflow run build-desktop -R ... -f pkgrel=2 -f force=true
 ```
 
-## 2. 打包
+工作流会：
+
+1. 解析上游 commit 和 `pkgver`；
+2. 在 Arch 容器里 `makepkg`；
+3. 上传包、`SHA256SUMS`、`metadata.env` 到 GitHub Release。
+
+本机入库：
 
 ```bash
-ci/package-wayland.sh <linux-unpacked> <out-dir> 0.2.2rc3
-# 产出 deepseek-harness-desktop-wayland-0.2.2rc3-1-x86_64.pkg.tar.zst
+./ci/sync-localrepo.sh
+sudo pacman -Syu deepseek-harness-desktop-wayland
 ```
 
-## 3. 发布到本机 localrepo
+## 手工（调试）
 
 ```bash
-STAGE=~/.local/share/dsh-local-update/staging/wayland-0.2.2rc3
-mkdir -p "$STAGE"
-cp <out-dir>/deepseek-harness-desktop-wayland-0.2.2rc3-1-x86_64.pkg.tar.zst "$STAGE/"
-# 写入 metadata.env（tag/commit/归档 sha256/补丁系列 sha256/构建时间/包 sha256）
-(cd "$STAGE" && sha256sum ./*.pkg.tar.zst metadata.env > SHA256SUMS)
+# 1) 在干净的上游 master 树上应用补丁后，或直接用参数化 PKGBUILD：
+cd packaging
+DSH_PKGVER=0.2.2rc3.r608.g39163dd \
+DSH_PKGREL=1 \
+DSH_UPSTREAM_REF=<40位sha> \
+DSH_UPSTREAM_COMMIT=<40位sha> \
+DSH_UPSTREAM_SHA256=<archive sha256> \
+makepkg -C -s --nocheck
 
-# root 窗口内（用户本人开窗；脚本要求 SUDO_USER 且 staging 属于当前用户）
-dsh-root run 'env SUDO_USER=Arch /usr/local/bin/dsh-localrepo-publish '"$STAGE"
-
-# 客户端刷新元数据后即可安装
-sudo pacman -Sy
-sudo pacman -S deepseek-harness-desktop-wayland
+# 2) 产物
+ls -lh deepseek-harness-desktop-wayland-*.pkg.tar.zst
 ```
 
-## 4. 发布到 GitHub
+## 发布到 GitHub
 
 ```bash
-# 本机 git 全局配置了 gh-proxy 的 insteadOf 重写，直接 push 会走代理并失败；
-# 用空全局配置 + gh 凭据 helper 直连（仅影响这条命令）：
+gh release create "v<pkgver>-<pkgrel>" \
+  deepseek-harness-desktop-wayland-<pkgver>-<pkgrel>-x86_64.pkg.tar.zst \
+  SHA256SUMS metadata.env \
+  -R Moritz230127/deepseek-harness-desktop-wayland \
+  --title "deepseek-harness-desktop-wayland <pkgver>-<pkgrel> (rolling)" \
+  --notes-file release-notes.md
+```
+
+仓库默认 private。公开可获得无限制 Actions 分钟数，但先确认没有个人信息/凭据：
+
+```bash
+gh repo edit --visibility public --accept-visibility-change-consequences
+```
+
+## 推送到 GitHub 的代理问题
+
+本机 git 全局配置了 `gh-proxy` 的 `insteadOf` 重写；直连推送时用空全局配置 + gh 凭据：
+
+```bash
 GIT_CONFIG_GLOBAL=/dev/null git -c credential.helper='!gh auth git-credential' \
   push origin main
-GIT_CONFIG_GLOBAL=/dev/null git -c credential.helper='!gh auth git-credential' \
-  push origin v0.2.2rc3-1
-
-gh release create v0.2.2rc3-1 --repo Moritz230127/deepseek-harness-desktop-wayland \
-  --title "deepseek-harness-desktop-wayland 0.2.2rc3-1 (Arch Linux / Wayland)" \
-  --notes-file release-notes.md
-
-gh release upload v0.2.2rc3-1 --repo Moritz230127/deepseek-harness-desktop-wayland \
-  <pkg.tar.zst> <SHA256SUMS> <metadata.env> --clobber
 ```
-
-仓库默认 **private**（与旧仓库一致）；如需公开：`gh repo edit --visibility public --accept-visibility-change-consequences`。

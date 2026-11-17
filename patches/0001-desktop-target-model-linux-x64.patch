@@ -1,8 +1,8 @@
 # 目的：在桌面构建目标模型中增加 linux-x64/linux-arm64，并提供按目标定位 Electron 可执行文件的辅助函数。
-diff --git a/apps/desktop/scripts/desktop-auto-update-environment.d.mts b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
+diff --git a/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts b/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts
 index c58df5a0..4a726eba 100644
---- a/apps/desktop/scripts/desktop-auto-update-environment.d.mts
-+++ b/apps/desktop/scripts/desktop-auto-update-environment.d.mts
+--- a/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts
++++ b/apps/desktop-publisher/src/desktop-auto-update-environment.d.mts
 @@ -5,7 +5,7 @@ export const DESKTOP_AUTO_UPDATE_ENV: 'DSH_DESKTOP_AUTO_UPDATE_ENV'
  export type DesktopAutoUpdateEnvironment = 'test' | 'production'
  
@@ -12,10 +12,10 @@ index c58df5a0..4a726eba 100644
  
  /**
   * Name the fixed installer object shared by uploading and cache refresh.
-diff --git a/apps/desktop/scripts/desktop-auto-update-environment.mjs b/apps/desktop/scripts/desktop-auto-update-environment.mjs
+diff --git a/apps/desktop-publisher/src/desktop-auto-update-environment.mjs b/apps/desktop-publisher/src/desktop-auto-update-environment.mjs
 index 24aaa0ea..981d1824 100644
---- a/apps/desktop/scripts/desktop-auto-update-environment.mjs
-+++ b/apps/desktop/scripts/desktop-auto-update-environment.mjs
+--- a/apps/desktop-publisher/src/desktop-auto-update-environment.mjs
++++ b/apps/desktop-publisher/src/desktop-auto-update-environment.mjs
 @@ -33,7 +33,7 @@ const UPDATE_ENVIRONMENTS = {
    },
  }
@@ -160,19 +160,6 @@ index edfd9cdf..66067e6d 100644
  /**
   * Resolve the paths owned by the target selected in a packaging environment.
   * @param {NodeJS.ProcessEnv} env - Packaging environment.
-diff --git a/apps/desktop/scripts/desktop-release-store.ts b/apps/desktop/scripts/desktop-release-store.ts
-index eb9d5457..d43eb1b0 100644
---- a/apps/desktop/scripts/desktop-release-store.ts
-+++ b/apps/desktop/scripts/desktop-release-store.ts
-@@ -17,7 +17,7 @@ const sourceSchema = z.strictObject({
-   channel: z.enum(['nightly', 'stable']),
-   runnerName: z.string().min(1),
-   // Storage accepts every Desktop target; CI routing separately limits currently provisioned platforms.
--  target: z.enum(['mac-arm64', 'mac-x64', 'win-x64']),
-+  target: z.enum(['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64', 'linux-arm64']),
-   preset: z.enum(['test', 'production']),
-   productVersion: z.string().min(1),
-   version: z.string().min(1),
 diff --git a/apps/desktop/scripts/retain-desktop-ci.ts b/apps/desktop/scripts/retain-desktop-ci.ts
 index e6722749..2a2f35fa 100644
 --- a/apps/desktop/scripts/retain-desktop-ci.ts
@@ -188,3 +175,15 @@ index e6722749..2a2f35fa 100644
      || new Set(Object.values(routes).map(item => item.label)).size !== Object.keys(routes).length) {
      throw new Error('desktop retention: original machine requires a unique artifact routing label')
    }
+diff --git a/apps/desktop-publisher/src/desktop-release-store.ts b/apps/desktop-publisher/src/desktop-release-store.ts
+--- a/apps/desktop-publisher/src/desktop-release-store.ts
++++ b/apps/desktop-publisher/src/desktop-release-store.ts
+@@ -17,7 +17,7 @@ const sourceSchema = z.strictObject({
+   channel: z.enum(['nightly', 'stable']),
+   runnerName: z.string().min(1),
+   // Storage accepts every Desktop target; CI routing separately limits currently provisioned platforms.
+-  target: z.enum(['mac-arm64', 'mac-x64', 'win-x64']),
++  target: z.enum(['mac-arm64', 'mac-x64', 'win-x64', 'linux-x64', 'linux-arm64']),
+   preset: z.enum(['test', 'production']),
+   productVersion: z.string().min(1),
+   version: z.string().min(1),

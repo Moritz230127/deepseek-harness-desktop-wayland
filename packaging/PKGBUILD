@@ -11,13 +11,23 @@
 #   - 可选：DSH_DESKTOP_NPM_REGISTRY=https://registry.npmmirror.com makepkg -C -s --nocheck
 #   - 可选：ELECTRON_MIRROR=<镜像>/ makepkg ...（GitHub 网络不通时）
 #   - 可选：DSH_DESKTOP_LINUX_DOWNLOAD_CACHE=<已有 .desktop-build/downloads> 复用 Electron/Node/Python 缓存
+#
+# Rolling（CI 默认）：
+#   DSH_PKGVER=<上游版本>.r<提交数>.g<短 SHA>
+#   DSH_PKGREL=<整数>
+#   DSH_UPSTREAM_REF=<完整 40 位 commit SHA>（archive URL 也用它，保证可复现）
+#   DSH_UPSTREAM_COMMIT=<同一个 SHA>
+#   DSH_UPSTREAM_SHA256=<上游 archive 的 sha256>
+#   例：DSH_PKGVER=0.2.2rc3.r608.g39163dd DSH_UPSTREAM_REF=<sha> ... makepkg -s --nocheck
 
 pkgname=deepseek-harness-desktop-wayland
-pkgver=0.2.2rc3
-pkgrel=1
-_tag='dsh-v0.2.2-rc.3'
-_commit='38a6a5c965aa99ab525161efb7cc5cf1fe62fced'
+# 默认固定到最近一次补丁 rebase 的上游 master commit；CI 每次通过环境变量覆盖。
+pkgver=${DSH_PKGVER:-0.2.2rc3.r608.g39163dd}
+pkgrel=${DSH_PKGREL:-1}
+_tag=${DSH_UPSTREAM_REF:-39163dd30f703a79079e2d2446545cff3c453738}
+_commit=${DSH_UPSTREAM_COMMIT:-39163dd30f703a79079e2d2446545cff3c453738}
 _srcdirname="deepseek-harness-$_tag"
+_upstream_archive_sha256=${DSH_UPSTREAM_SHA256:-f77ad662bf7d6875f01e34f69c9e1c5f4f306a4dd5265e663c2093fdf9957cc0}
 pkgdesc='Official DeepSeek Harness desktop for Linux (Electron shell + bundled dsh runtime; native Wayland, NVIDIA-stable)'
 arch=('x86_64')
 url='https://github.com/deepseek-ai/deepseek-harness'
@@ -67,9 +77,9 @@ source=(
   'deepseek-harness.apparmor'
 )
 sha256sums=(
-  'bf6d668e52a26edf98aa2ef7960e240c8d9afcefbad2b09887a2cb1e14001dd5'
+  "$_upstream_archive_sha256"
   'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
-  'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
+  'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
   '19c841836b9c4c8bed9459f00fe0d2ad572809e36a8ae053aaf4a1d811dda93a'   # launcher（wayland-analyst 定稿）
   'd26f3b2d1c80c9b8ab3c9bf30f0fcff6e822b1e493d3c7ca2f945aeb3af3ae5e'   # desktop entry
   'a141347c25118ae887f55410e9b408b4dc7c2fdf0abf50a48f823f31ffc772f1'   # systemd user unit
@@ -107,7 +117,10 @@ prepare() {
   local p
   for p in "$srcdir"/0*.patch; do
     msg2 "applying $(basename "$p")"
-    patch -Np1 --no-backup-if-mismatch -i "$p" || return 1
+    patch -Np1 --no-backup-if-mismatch -i "$p" || {
+      error "补丁失败：$(basename "$p")（上游可能已改动同一文件，需要 rebase 补丁）"
+      return 1
+    }
   done
 }
 

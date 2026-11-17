@@ -7,7 +7,7 @@
 基于官方 **DeepSeek Harness `dsh-v0.2.2-rc.3`** 源码、面向 **Arch Linux / niri (Wayland) / NVIDIA** 的全新 Linux 桌面端构建。
 
 > 仓库地址：<https://github.com/Moritz230127/deepseek-harness-desktop-wayland>
-> 本仓库**不复用**旧 `deepseek-harness-desktop-linux` 的 48 文件补丁系列，而是从官方 rc.3 源码重新分析、重写最小补丁（16 个）。
+> 本仓库**不复用**旧 `deepseek-harness-desktop-linux` 的 48 文件补丁系列，而是从官方 rc.3 源码重新分析、重写最小补丁（17 个）；当前默认追踪上游 `master` 的 commit 构建（rolling）。
 
 ## 特性
 
@@ -30,6 +30,8 @@
 | pacman 包 | `deepseek-harness-desktop-wayland-0.2.2rc3-2-x86_64.pkg.tar.zst`（341 MB） |
 | sha256 | `c91e2d1e060e6957d492a6552f404ac0836da24b18e3ea8ac065c41900fe7935` |
 | 官方归档 sha256 | `bf6d668e52a26edf98aa2ef7960e240c8d9afcefbad2b09887a2cb1e14001dd5` |
+
+> 上表是 rc.3 基线；rolling 版本形如 `0.2.2rc3.r608.g39163dd-1`（上游 master commit + 补丁），由 GitHub Actions 自动发布。
 
 本机分发：已发布到 `[localrepo]`（`/srv/localrepo`）。GitHub Release：<https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/v0.2.2rc3-2>（含同名二进制包、SHA256SUMS、metadata.env）。
 
@@ -110,8 +112,13 @@ npm i --prefix ~/.local/share/dsh-pnpm-11 pnpm@11.28.5
 两种方式：
 
 ```bash
-# A. 全量源码包（可复现；prepare() 从官方归档重建并应用 16 补丁，build() 跑官方流水线）
+# A. 全量源码包（默认固定到 PKGBUILD 内的 master commit；prepare() 应用 17 补丁）
 cd packaging && makepkg -C -s --nocheck
+
+# 指定其他上游 commit（CI 就是这样调的）
+DSH_PKGVER=0.2.2rc3.r608.g39163dd DSH_UPSTREAM_REF=<40位sha> \
+DSH_UPSTREAM_COMMIT=<40位sha> DSH_UPSTREAM_SHA256=<archive sha256> \
+makepkg -C -s --nocheck
 
 # B. 预构建载荷包（快速交付；复用已构建的 linux-unpacked）
 ci/package-wayland.sh <linux-unpacked> <out-dir> 0.2.2rc3
@@ -124,7 +131,7 @@ ci/build-wayland.sh <upstream-tree> --dir   # 需仍为已应用补丁的树
 
 构建环境已处理的坑（详见 docs/build-verification.md）：系统 pnpm 12 二进制入口、`/tmp` noexec 导致的 koffi 预编译失败、release tarball 无 `.git` 的 commit 注入、打包期内部 pnpm 的 registry 镜像。
 
-## 补丁系列（16 个）
+## 补丁系列（17 个）
 
 ### 构建启用（0001–0010，43 文件 / +414 −125）
 
@@ -162,14 +169,16 @@ ci/build-wayland.sh <upstream-tree> --dir   # 需仍为已应用补丁的树
 - `video_encode` 在 Chromium/NVIDIA 上为 `disabled_software`：**解码硬解**已启用，**编码**仍走软件。
 - niri 26.04 未宣告 `linux-drm-syncobj-v1`，显式同步 flag 当前为 no-op（保留前向兼容）。
 - 稳定性覆盖：8 组合 ×~105 s 矩阵 + 最终包抽测；**24 h+ soak、挂起/恢复、多显示器**未覆盖。
-- 本仓库是**本地预构建载荷包**的构建/打包项目（非 AUR 发布）；可复现性由官方归档 sha256 + 16 补丁 + 构建脚本保证。
+- 本仓库是**本地预构建载荷包**的构建/打包项目（非 AUR 发布）；可复现性由官方归档 sha256 + 17 补丁 + 构建脚本保证。
 - 用户 profile 内插件仍 pin 在 0.2.2-rc.1；桌面升级后若插件异常，在插件管理页更新对应插件。
 
 ## 仓库结构
 
 ```
-ci/          build-wayland.sh（构建）/ package-wayland.sh（打包）
-patches/     17 个补丁（0001–0016）
+ci/          build-wayland.sh（开发构建）/ package-wayland.sh（预构建打包）
+             ci-build.sh / makepkg.sh（CI）/ resolve-upstream.sh / publish-release.sh
+             sync-localrepo.sh（本机入库）
+patches/     17 个补丁（0001–0017）
 packaging/   PKGBUILD（源码包）、PKGBUILD.prebuilt（快速交付）、launcher、desktop、systemd、icons、AppArmor、install
 docs/        验证/归因/补丁设计文档 + 证据截图
 launcher/    launcher 副本（研究交付位置）
@@ -178,7 +187,8 @@ reference/   ffyfox-patches 参考基线（MIT，未直接作为运行时补丁�
 
 ## 发布与维护
 
-- 本机 localrepo 发布与 GitHub Release 流程见 [docs/publish.md](docs/publish.md)。
+- 自动构建（追踪上游 `master`）、版本规则、补丁 rebase 流程见 [docs/automation.md](docs/automation.md)。
+- 手工发布与 GitHub 推送见 [docs/publish.md](docs/publish.md)。
 - 仓库默认 **private**；需要公开时：`gh repo edit --visibility public --accept-visibility-change-consequences`。
 - 本机 git 全局配置了 `gh-proxy` 的 `insteadOf` 重写，推送需绕过（详见 docs/publish.md 的命令）。
 
