@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Download the newest rolling package into /srv/localrepo and refresh the db.
+# Download the newest rolling DSH package into /srv/dshrepo and refresh its db.
 # Deliberately does NOT install: a bad build must not replace a working desktop.
 set -euo pipefail
 
 REPO=${REPO:-Moritz230127/deepseek-harness-desktop-wayland}
 PKG=deepseek-harness-desktop-wayland
-DB=${DB:-/srv/localrepo/localrepo.db.tar.gz}
+DIR=${DIR:-/srv/dshrepo}
+DB=${DB:-$DIR/dsh.db.tar.gz}
 REL=rolling
 
 tmp=$(mktemp -d)
@@ -31,8 +32,9 @@ gh release download "$REL" -R "$REPO" -D "$tmp" -p "$artifact" --clobber
   grep -F "  $artifact" SHA256SUMS | sha256sum -c -
 )
 
-sudo cp "$tmp/$artifact" /srv/localrepo/
-sudo repo-add "$DB" "/srv/localrepo/$artifact"
+sudo install -d "$DIR"
+sudo cp "$tmp/$artifact" "$DIR/"
+sudo repo-add "$DB" "$DIR/$artifact"
 sudo pacman -Sy --noconfirm
 
 if command -v notify-send >/dev/null; then

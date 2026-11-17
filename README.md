@@ -33,26 +33,27 @@
 
 > 上表是 rc.3 基线；rolling 版本形如 `0.2.2rc3.r608.g39163dd-1`（上游 master commit + 补丁），由 GitHub Actions 自动发布到固定 tag 的 [rolling Release](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/rolling)。
 
-本机分发：已发布到 `[localrepo]`（`/srv/localrepo`）。GitHub Release：<https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/v0.2.2rc3-2>（含同名二进制包、SHA256SUMS、metadata.env）。
+本机分发：使用独立的 `[dsh]` 云端源（GitHub rolling Release）；旧版本仍留在 `/srv/localrepo`，`[localrepo]` 继续给其他自维护项目用。
 
 ## 安装 / 回滚
 
+```ini
+# /etc/pacman.conf：只给 DSH 新增一段，localrepo 原样保留
+[dsh]
+SigLevel = Optional TrustAll
+Server = https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/download/rolling
+```
+
 ```bash
-# 1) 刷新 localrepo 元数据（本机 /srv/localrepo）
-sudo pacman -Sy
-
-# 2) 安装新包；pacman 会提示替换旧的 deepseek-harness-desktop-linux
-sudo pacman -S deepseek-harness-desktop-wayland
-
-# 3) 关闭正在运行的旧桌面端，然后从应用菜单启动 "DeepSeek Harness"
-#    （用户级 ~/.local/share/applications/deepseek-harness.desktop 若存在，其 Exec 仍兼容）
+sudo pacman -Syy
+sudo pacman -Syu
 ```
 
 回滚：
 
 ```bash
-sudo pacman -R deepseek-harness-desktop-wayland
-sudo pacman -S deepseek-harness-desktop-linux   # 旧包仍在 localrepo
+sudo pacman -U /srv/localrepo/deepseek-harness-desktop-wayland-<旧版本>-x86_64.pkg.tar.zst
+# 或从 rolling Release 下载旧包后 pacman -U
 ```
 
 ### 零报错验收前置（用户 profile）
@@ -177,7 +178,7 @@ ci/build-wayland.sh <upstream-tree> --dir   # 需仍为已应用补丁的树
 ```
 ci/          build-wayland.sh（开发构建）/ package-wayland.sh（预构建打包）
              ci-build.sh / makepkg.sh（CI）/ resolve-upstream.sh / publish-release.sh
-             sync-localrepo.sh（本机入库）
+             sync-dsh-repo.sh（可选本地兜底）
 patches/     17 个补丁（0001–0017）
 packaging/   PKGBUILD（源码包）、PKGBUILD.prebuilt（快速交付）、launcher、desktop、systemd、icons、AppArmor、install
 docs/        验证/归因/补丁设计文档 + 证据截图

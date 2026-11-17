@@ -37,7 +37,7 @@ assets:
 - `dsh.db` 每次构建覆盖；`repo-add` 在 CI 的 Arch 容器里执行。
 - 公开仓库用独立的 `[dsh]` 段 + `dsh.db`（见 `docs/publish.md`）；`[localrepo]` 保持给其他自维护项目，
   避免一个 db 把后续项目全绑在 DSH 的发布节奏上。
-- 本机也可以继续用 `ci/sync-localrepo.sh` 把包拉回 `/srv/localrepo` 作为离线回退。
+- 需要离线兜底时用 `ci/sync-dsh-repo.sh` 拉到 `/srv/dshrepo`（DSH 专用），不碰 `localrepo`。
 
 ## 工作流
 
@@ -73,24 +73,25 @@ gh workflow run build-desktop -R ... -f ref=<sha|tag>
 gh workflow run build-desktop -R ... -f pkgrel=2 -f force=true
 ```
 
-## 本机入库
+## 可选：本机兜底
+
+云端 `[dsh]` 源正常时不需要这一步。只有 GitHub 下载慢、或想留离线副本时：
 
 ```bash
-# 只下载、校验、repo-add，不自动安装
-./ci/sync-localrepo.sh
+# 只下载、校验、repo-add 到 /srv/dshrepo，不自动安装
+./ci/sync-dsh-repo.sh
 
 # 确认后安装
 sudo pacman -Syu deepseek-harness-desktop-wayland
 ```
 
-建议用 systemd user timer 每 6 小时跑一次 `sync-localrepo.sh`。它**不会**自动 `pacman -S`：
-滚动包可能坏，保留上一版用于回滚比省一次点击重要。
+`/srv/dshrepo` 是 DSH 专用兜底仓库；`/srv/localrepo` 不受影响，继续给其他自维护项目用。
 
 ```ini
 # ~/.config/systemd/user/dsh-sync.service
 [Service]
 Type=oneshot
-ExecStart=%h/dsh-re/dsh-desktop-wayland/ci/sync-localrepo.sh
+ExecStart=%h/dsh-re/dsh-desktop-wayland/ci/sync-dsh-repo.sh
 ```
 
 ```ini
@@ -103,7 +104,7 @@ Persistent=true
 WantedBy=timers.target
 ```
 
-`sync-localrepo.sh` 里的 `sudo repo-add` 需要一次密码；如果不想每次输，只给这一条命令加
+`sync-dsh-repo.sh` 里的 `sudo repo-add` 需要一次密码；如果不想每次输，只给这一条命令加
 NOPASSWD，不要把整个脚本放进 sudoers。
 
 ## 失败通知（已启用）
@@ -167,12 +168,12 @@ cd /tmp/pkgtest && makepkg --nobuild --nocheck --nodeps
 
 ## 回滚
 
-- `rolling` release 保留最近 3 个版本化包；`/srv/localrepo` 里的旧 `.pkg.tar.zst` 不会因 `repo-add` 消失。
+- `rolling` release 保留最近 3 个版本化包；`/srv/dshrepo` 里的旧 `.pkg.tar.zst` 不会因 `repo-add` 消失。
 - 公开仓库的旧包可直接 `sudo pacman -U https://github.com/<owner>/<repo>/releases/download/rolling/<旧文件名>`。
 - 回滚到上一版：
 
 ```bash
-sudo pacman -U /srv/localrepo/deepseek-harness-desktop-wayland-<旧版本>-x86_64.pkg.tar.zst
+sudo pacman -U /srv/dshrepo/deepseek-harness-desktop-wayland-<旧版本>-x86_64.pkg.tar.zst
 ```
 
 - 若新版启动失败，先回滚包，再在 issue 里附 `metadata.env` 的上游 SHA。

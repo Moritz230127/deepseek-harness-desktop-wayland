@@ -22,7 +22,7 @@ gh workflow run build-desktop -R ... -f pkgrel=2 -f force=true
 本机入库：
 
 ```bash
-./ci/sync-localrepo.sh
+./ci/sync-dsh-repo.sh
 sudo pacman -Syu deepseek-harness-desktop-wayland
 ```
 
