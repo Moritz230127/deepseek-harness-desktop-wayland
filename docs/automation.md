@@ -106,6 +106,30 @@ WantedBy=timers.target
 `sync-localrepo.sh` 里的 `sudo repo-add` 需要一次密码；如果不想每次输，只给这一条命令加
 NOPASSWD，不要把整个脚本放进 sudoers。
 
+## 失败通知（已启用）
+
+构建或发布失败时，`.github/workflows/build.yml` 的 `notify` job 会：
+
+- 创建/更新带 `ci-failure` label 的 issue；
+- 附上 run URL、上游 ref/SHA、`pkgver`；
+- 附上失败日志的最后 60 行，以及本机复现命令。
+
+这样 DSH 不需要一直开着：失败先落在 GitHub issue 里，你看到再处理。
+同一 SHA 的重复失败会追加评论，不会刷一堆 issue。
+
+## 后续自动修复（按需再上）
+
+1. 失败频率低（每月 0–2 次）：保持手动，issue 只是提醒。
+2. 失败变频繁：加一个 DSH 定时任务，轮询 `ci-failure` issue，开修复 session；
+   仍然只提 PR，不直接改 `main`。
+3. 需要工单、审计、并发控制：部署官方
+   [`dsh-superagent-prototype`](https://github.com/deepseek-ai/dsh-superagent-prototype)。
+   它把 GitHub CI 作为 Source，Policy 的 accept mode 设为 `auto`、加一条
+   “修复补丁失效”规则，worker 会拉 master、修 patch、跑 `makepkg --nobuild`、提 PR；
+   默认不自动 merge。
+
+无论哪一级，**CI 通过 + 人 merge** 是最后一道闸门。
+
 ## 补丁 rebase（唯一需要人做的一步）
 
 CI 报 `补丁失败：00xx-...` 时：

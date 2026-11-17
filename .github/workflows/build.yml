@@ -22,6 +22,7 @@ on:
 
 permissions:
   contents: write
+  issues: write
 
 concurrency:
   group: build-desktop
@@ -84,3 +85,64 @@ jobs:
           AHEAD: ${{ needs.resolve.outputs.ahead }}
           BASE_TAG: ${{ needs.resolve.outputs.base_tag }}
         run: ./ci/publish-release.sh
+
+  notify:
+    needs: [resolve, build]
+    if: always() && (needs.resolve.result == 'failure' || needs.build.result == 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: open or update ci-failure issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ needs.resolve.outputs.sha || 'unknown' }}
+          REF: ${{ needs.resolve.outputs.ref || 'unknown' }}
+          PKGVER: ${{ needs.resolve.outputs.pkgver || 'unknown' }}
+        run: |
+          set -euo pipefail
+          short=${SHA:0:7}
+          title="CI failed: $short"
+
+          gh label create ci-failure --color B60205 \
+            --description "automated build failure" --force >/dev/null 2>&1 || true
+
+          body=$(mktemp)
+          log=$(mktemp)
+          trap 'rm -f "$body" "$log"' EXIT
+          gh run view "$RUN_ID" -R "$GITHUB_REPOSITORY" --log-failed > "$log" 2>/dev/null || true
+          {
+            echo "Automatic build failed."
+            echo
+            echo "- run: $RUN_URL"
+            echo "- upstream: \`$REF\` @ \`$SHA\`"
+            echo "- pkgver: \`$PKGVER\`"
+            echo
+            echo "Most likely cause: a patch in \`patches/\` no longer applies, or the"
+            echo "upstream Linux build changed. Reproduce locally with:"
+            echo
+            echo '```bash'
+            echo 'cd ~/dsh-re/dsh-desktop-wayland'
+            echo 'cp -aL packaging/. /tmp/pkgtest && cd /tmp/pkgtest'
+            echo 'makepkg --nobuild --nocheck --nodeps'
+            echo '```'
+            echo
+            echo "Failed log tail:"
+            echo
+            echo '```text'
+            tail -60 "$log" 2>/dev/null || true
+            echo '```'
+          } > "$body"
+
+          issue=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --label ci-failure \
+            --limit 50 --json number,title \
+            --jq --arg s "$short" '.[] | select(.title | contains($s)) | .number' | head -1)
+
+          if [[ -n ${issue:-} ]]; then
+            gh issue comment "$issue" -R "$GITHUB_REPOSITORY" --body-file "$body"
+          else
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" \
+              --label ci-failure --body-file "$body"
+          fi
