@@ -136,8 +136,15 @@ jobs:
             echo '```'
           } > "$body"
 
-          issue=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --label ci-failure \
-            --limit 50 --json number,title \
+          label_args=()
+          label_names=$(gh label list -R "$GITHUB_REPOSITORY" --limit 100 --json name \
+            --jq '.[].name' 2>/dev/null || true)
+          if grep -qx 'ci-failure' <<<"$label_names"; then
+            label_args+=(--label ci-failure)
+          fi
+
+          issue=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --limit 100 \
+            --json number,title \
             --jq '.[] | [.number, .title] | @tsv' \
             | awk -F '\t' -v s="$short" 'index($2, s) { print $1; exit }')
 
@@ -145,5 +152,5 @@ jobs:
             gh issue comment "$issue" -R "$GITHUB_REPOSITORY" --body-file "$body"
           else
             gh issue create -R "$GITHUB_REPOSITORY" --title "$title" \
-              --label ci-failure --body-file "$body"
+              "${label_args[@]}" --body-file "$body"
           fi
