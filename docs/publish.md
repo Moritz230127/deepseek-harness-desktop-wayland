@@ -17,7 +17,7 @@ gh workflow run build-desktop -R ... -f pkgrel=2 -f force=true
 
 1. 解析上游 commit 和 `pkgver`；
 2. 在 Arch 容器里 `makepkg`；
-3. 更新唯一的 `rolling` Release：版本化包、`dsh.db`、`latest`、`SHA256SUMS`、`metadata.env`。
+3. 更新唯一的 `rolling` Release：版本化包、`localrepo.db`、`latest`、`SHA256SUMS`、`metadata.env`。
 
 本机入库：
 
@@ -47,15 +47,15 @@ ls -lh deepseek-harness-desktop-wayland-*.pkg.tar.zst
 追踪 git 时不要为每个 commit 建 release/tag。固定 tag `rolling`，资产用版本化文件名：
 
 ```bash
-# 在 CI 产出的 out/ 目录：包 + dsh.db + latest + metadata.env + SHA256SUMS
-gh release create rolling out/*.pkg.tar.zst out/dsh.db out/latest \
+# 在 CI 产出的 out/ 目录：包 + localrepo.db + latest + metadata.env + SHA256SUMS
+gh release create rolling out/*.pkg.tar.zst out/localrepo.db out/latest \
   out/metadata.env out/SHA256SUMS \
   -R Moritz230127/deepseek-harness-desktop-wayland \
   --prerelease \
   --title "rolling: deepseek-harness-desktop-wayland <pkgver>-<pkgrel>" \
   --notes-file release-notes.md
 # 已存在时
-gh release upload rolling out/*.pkg.tar.zst out/dsh.db out/latest \
+gh release upload rolling out/*.pkg.tar.zst out/localrepo.db out/latest \
   out/metadata.env out/SHA256SUMS -R ... --clobber
 ```
 
@@ -63,24 +63,26 @@ gh release upload rolling out/*.pkg.tar.zst out/dsh.db out/latest \
 
 仓库设为 public 后，GitHub Release 资产可以直接作为 pacman 的 `Server`，不需要本机 repo：
 
+不用改仓库名：保留 `[localrepo]`，只把 `Server` 从本地文件换成云端 URL。
+Release 里的 db 资产名必须和仓库名一致（`localrepo.db`）：
+
 ```ini
-[dsh]
+[localrepo]
 SigLevel = Optional TrustAll
 Server = https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/download/rolling
+# 可选：云端不可达时回退到本机旧仓库（会拿到旧版本）
+# Server = file:///srv/localrepo
 ```
 
 ```bash
-sudo pacman -Syy
-sudo pacman -S deepseek-harness-desktop-wayland
+sudo pacman -Syy                 # 拉取 localrepo.db
+sudo pacman -Syu                 # 正常升级
 ```
 
-私有仓库不能这样用（pacman 不会带 GitHub token），用 `ci/sync-localrepo.sh` 走 `gh` 下载。
+pacman 会把下载的包缓存在 `/var/cache/pacman/pkg`，所以“云端拉取”仍然有本地缓存，
+`/srv/localrepo` 可以保留当离线回退，也可以清掉。
 
-仓库默认 private。公开可获得无限制 Actions 分钟数，但先确认没有个人信息/凭据：
-
-```bash
-gh repo edit --visibility public --accept-visibility-change-consequences
-```
+私有仓库不能这样用（pacman 不会带 GitHub token）；现在仓库已转 public，可以直接用。
 
 ## 推送到 GitHub 的代理问题
 

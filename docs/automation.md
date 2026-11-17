@@ -27,16 +27,17 @@ pkgver = <上游 package.json 版本>.r<相对最近 tag 的提交数>.g<短 SHA
 tag: rolling
 assets:
   deepseek-harness-desktop-wayland-<pkgver>-<pkgrel>-x86_64.pkg.tar.zst
-  dsh.db          # pacman repo 数据库（repo-add 生成，只指向当前包）
+  localrepo.db          # pacman repo 数据库（repo-add 生成，只指向当前包）
   latest          # pkgver/pkgrel/artifact/upstream_sha，供本机同步读取
   metadata.env
   SHA256SUMS
 ```
 
 - 包文件名带版本；旧包资产保留最近 3 个，回滚可按 URL 直接 `pacman -U`。
-- `dsh.db` 每次构建覆盖；`repo-add` 在 CI 的 Arch 容器里执行。
+- `localrepo.db` 每次构建覆盖；`repo-add` 在 CI 的 Arch 容器里执行。
 - 公开仓库可以直接把 release 当 pacman `Server`（见 `docs/publish.md`）；
-  私有仓库用 `ci/sync-localrepo.sh` 下载。
+  `[localrepo]` 名称不变，db 资产名用 `localrepo.db` 对齐 pacman 的 `<repo>.db` 约定。
+- 本机也可以继续用 `ci/sync-localrepo.sh` 把包拉回 `/srv/localrepo` 作为离线回退。
 
 ## 工作流
 
@@ -55,7 +56,7 @@ assets:
      不会浪费后面的构建时间；
    - `build()` 跑上游的 `package:linux:x64:dir`。
 3. **publish**
-   - 更新唯一的 `rolling` release：上传版本化包、`dsh.db`、`latest`、`SHA256SUMS`、`metadata.env`；
+   - 更新唯一的 `rolling` release：上传版本化包、`localrepo.db`、`latest`、`SHA256SUMS`、`metadata.env`；
    - release notes 带上游 commit 列表、补丁指纹和 pacman `Server` 示例；
    - 只保留最近 3 个 `.pkg.tar.zst` 资产。
 
