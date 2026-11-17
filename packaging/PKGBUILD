@@ -1,7 +1,7 @@
 # Maintainer: Moritz230127 <moritz230127@users.noreply.github.com>
 #
 # DeepSeek Harness Linux 桌面端（全新 Wayland 构建）。
-# 从官方 dsh-v0.2.2-rc.3 源码 + 本仓库最小补丁系列构建；不沿用旧 dsh-desktop-integration 的 48 文件补丁。
+# 从官方 master commit 源码 + 本仓库最小补丁系列构建；不沿用旧 dsh-desktop-integration 的 48 文件补丁。
 # 设计目标：忠实官方源码、原生 Wayland、NVIDIA 下渲染稳定不闪烁、无美化补丁。
 #
 # 构建前置：
