@@ -138,7 +138,8 @@ jobs:
 
           issue=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --label ci-failure \
             --limit 50 --json number,title \
-            --jq --arg s "$short" '.[] | select(.title | contains($s)) | .number' | head -1)
+            --jq '.[] | [.number, .title] | @tsv' \
+            | awk -F '\t' -v s="$short" 'index($2, s) { print $1; exit }')
 
           if [[ -n ${issue:-} ]]; then
             gh issue comment "$issue" -R "$GITHUB_REPOSITORY" --body-file "$body"
