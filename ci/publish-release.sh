@@ -6,7 +6,7 @@
 #
 # Assets:
 #   <pkgver>-<pkgrel>-x86_64.pkg.tar.zst  versioned package (rollback by URL)
-#   localrepo.db                                pacman repo database (current package)
+#   dsh.db                                pacman repo database (current package)
 #   latest                                tiny state file for local sync
 #   metadata.env                          build provenance
 #   SHA256SUMS                            checksums for the above
@@ -29,7 +29,7 @@ cd "$(dirname "$0")/.."
 tag=rolling
 pkg=$(find out -maxdepth 1 -type f -name '*.pkg.tar.zst' | head -1)
 [[ -n $pkg ]] || { echo "找不到 out/*.pkg.tar.zst" >&2; exit 1; }
-[[ -f out/localrepo.db ]] || { echo "找不到 out/localrepo.db（ci-build.sh 的 repo-add 阶段失败？）" >&2; exit 1; }
+[[ -f out/dsh.db ]] || { echo "找不到 out/dsh.db（ci-build.sh 的 repo-add 阶段失败？）" >&2; exit 1; }
 
 artifact=$(basename "$pkg")
 artifact_sha256=$(sha256sum "$pkg" | awk '{print $1}')
@@ -65,7 +65,7 @@ EOF
 
 (
   cd out
-  sha256sum "$artifact" localrepo.db metadata.env latest > SHA256SUMS
+  sha256sum "$artifact" dsh.db metadata.env latest > SHA256SUMS
 )
 
 notes=$(mktemp)
@@ -94,7 +94,7 @@ trap 'rm -f "$notes"' EXIT
     || echo "(compare unavailable)"
 } > "$notes"
 
-assets=("$pkg" out/localrepo.db out/metadata.env out/SHA256SUMS out/latest)
+assets=("$pkg" out/dsh.db out/metadata.env out/SHA256SUMS out/latest)
 
 if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
   echo "==> 更新 rolling release"

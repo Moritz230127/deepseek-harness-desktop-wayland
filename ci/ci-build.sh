@@ -42,8 +42,8 @@ su builder -c "cd /w && \
 
 echo "==> pacman repo db"
 cd /w/out
-repo-add --quiet localrepo.db.tar.gz ./*.pkg.tar.zst
-# repo-add 留下 localrepo.db -> localrepo.db.tar.gz 的符号链接；Release 资产需要普通文件。
-cp --dereference localrepo.db localrepo.db.file
-mv localrepo.db.file localrepo.db
+repo-add --quiet dsh.db.tar.gz ./*.pkg.tar.zst
+# repo-add 留下 dsh.db -> dsh.db.tar.gz 的符号链接；Release 资产需要普通文件。
+cp --dereference dsh.db dsh.db.file
+mv dsh.db.file dsh.db
 ls -lh

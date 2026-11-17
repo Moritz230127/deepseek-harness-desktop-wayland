@@ -188,7 +188,7 @@ reference/   ffyfox-patches 参考基线（MIT，未直接作为运行时补丁�
 ## 发布与维护
 
 - 自动构建（追踪上游 `master`）、版本规则、补丁 rebase 流程见 [docs/automation.md](docs/automation.md)。
-- 发布使用固定的 `rolling` Release（含版本化包、`localrepo.db`、`latest`），不会为每个 commit 建 tag。
+- 发布使用固定的 `rolling` Release（含版本化包、`dsh.db`、`latest`；独立 `[dsh]` 源，不占用 `[localrepo]`），不会为每个 commit 建 tag。
 - 手工发布与 GitHub 推送见 [docs/publish.md](docs/publish.md)。
 - 仓库默认 **private**；需要公开时：`gh repo edit --visibility public --accept-visibility-change-consequences`。
 - 本机 git 全局配置了 `gh-proxy` 的 `insteadOf` 重写，推送需绕过（详见 docs/publish.md 的命令）。
