@@ -13,8 +13,8 @@ state; answer 200/null and keep the console clean. No UI behaviour changes.
    }
  }
  
--/** The summary one `workspace/changes` event announced, without the Host working directory; 404 once the Host no longer serves it. */
-+/** The summary one `workspace/changes` event announced, without the Host working directory; null once the Host no longer serves it. */
+-/** The summary one `workspace/changes` event announced, without its snapshot ids; 404 once the Host no longer serves it. */
++/** The summary one `workspace/changes` event announced, without its snapshot ids; null once the Host no longer serves it. */
  function handleChangesSummary(ctx: Context, request: Request): Response {
    const query = new URL(request.url).searchParams
    const id = query.get('sessionId')
@@ -26,8 +26,8 @@ state; answer 200/null and keep the console clean. No UI behaviour changes.
 +  // body as the expected "missing" state, so answer 200/null instead of an expected 404 that
 +  // DevTools would still report as a failed network request.
 +  if (summary === undefined) return Response.json(null, { headers: { 'cache-control': 'no-store' } })
-   const { turn, files, total, added, deleted } = summary
-   return Response.json({ turn, files, total, added, deleted } satisfies ChangesSummary, { headers: { 'cache-control': 'no-store' } })
+   const { turn, cwd, files, total, added, deleted } = summary
+   return Response.json({ turn, cwd, files, total, added, deleted } satisfies ChangesSummary, { headers: { 'cache-control': 'no-store' } })
  }
 
 -- 
