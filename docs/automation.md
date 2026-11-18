@@ -10,7 +10,7 @@
 
 ```
 pkgver = <上游 package.json 版本>.r<相对最近 tag 的提交数>.g<短 SHA>
-例：0.2.2rc3.r608.g39163dd-1
+例：0.2.2rc4.r1407.gca33fd6-1
 ```
 
 - `pkgver` 里的 SHA 是 40 位 commit；`source=` 直接指向

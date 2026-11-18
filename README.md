@@ -1,44 +1,33 @@
-# deepseek-harness-desktop-wayland
+# DeepSeek Harness Desktop · Linux (Wayland)
 
-[![Upstream](https://img.shields.io/badge/upstream-deepseek--ai%2Fdeepseek--harness-blue)](https://github.com/deepseek-ai/deepseek-harness)
-[![Version](https://img.shields.io/badge/desktop-0.2.2rc3--2-informational)](#产物)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![build](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/actions/workflows/build.yml/badge.svg)](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/actions/workflows/build.yml)
+[![package](https://img.shields.io/badge/package-rolling-blue)](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/rolling)
+[![platform](https://img.shields.io/badge/platform-Arch%20Linux%20%7C%20Wayland-1793d1)](https://archlinux.org)
+[![upstream](https://img.shields.io/badge/upstream-deepseek--ai%2Fdeepseek--harness-4d6bfe)](https://github.com/deepseek-ai/deepseek-harness)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
-基于官方 **DeepSeek Harness `dsh-v0.2.2-rc.3`** 源码、面向 **Arch Linux / niri (Wayland) / NVIDIA** 的全新 Linux 桌面端构建。
+面向 **Arch Linux / Wayland** 的非官方 **DeepSeek Harness Desktop** 构建：打包官方 Electron shell 与内置 `dsh` runtime，补上 Linux 构建接线和必要的运行时收敛。跟踪上游 `master`，以滚动 pacman 仓库分发。
 
-> 仓库地址：<https://github.com/Moritz230127/deepseek-harness-desktop-wayland>
-> 本仓库**不复用**旧 `deepseek-harness-desktop-linux` 的 48 文件补丁系列，而是从官方 rc.3 源码重新分析、重写最小补丁（17 个）；当前默认追踪上游 `master` 的 commit 构建（rolling）。
+> **非 DeepSeek 官方发行版。** 上游项目是 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（MIT）；本仓库只负责 Linux 构建、最小补丁和 pacman 打包。使用问题请提到本仓库，不要打扰上游。
+
+![DeepSeek Harness on Linux](docs/evidence/rc3/menu-hidden-new-package.png)
 
 ## 特性
 
-- **忠实官方源码**：补丁只做「让官方 macOS/Windows 流水线在 Linux 上工作 + 必要运行时收敛」，不含托盘、主题、磨砂、remote bridge、TUI 等美化/附加功能。
-- **原生 Wayland**：不安装、不启动任何 X11/XWayland 回退路径；Wayland 会话下强制 `--ozone-platform=wayland`。
-- **GPU 渲染优先 + 硬解**：默认 GPU 合成（ANGLE OpenGL / NVIDIA 硬件）与 VA-API/NVDEC 视频硬解；只有 GPU 进程彻底不可用时才做一次软件渲染兜底（仍原生 Wayland）。
-- **稳定、无闪烁**：8 组隔离场景 ×~105 s 矩阵 0 次 GPU 崩溃/FATAL、静止画面截图无差异；深色主题首帧背景色跟随主题（无白闪）。
-- **零 DevTools console 报错**：全新 profile 与「用户 profile（移除实验 Inspector bundle）」下均 0 error / 0 warning（详见 [docs/build-verification.md](docs/build-verification.md)）。
-- **无应用内更新**：pacman 统一管更新；Linux 上隐藏「检查更新」入口。
-- **无顶栏菜单**：Linux 上移除上游 GTK「应用/Edit」菜单条，F12 仍可打开 DevTools。
+- **尽量忠实上游**：17 个补丁，只做 Linux 构建使能和必要的运行时修正；不添加托盘、主题、磨砂、TUI、remote bridge 等附加功能。
+- **原生 Wayland**：Wayland 会话下强制 `--ozone-platform=wayland`，不主动回退 X11 / XWayland。
+- **NVIDIA 可用**：默认 GPU 合成与 VA-API/NVDEC 硬解；GPU 进程彻底不可用时才做一次软件渲染兜底，仍保持原生 Wayland。
+- **pacman 统一更新**：移除应用内更新入口，升级/回滚都由 pacman 负责。
+- **干净的 Linux 窗口**：移除上游 GTK 应用菜单条；`F12` 仍可打开 DevTools。
+- **可复现构建**：每次构建固定到 40 位上游 commit；CI 在 Arch 容器里构建并跑构建门禁与打包后冒烟。
 
-## 产物
+## 安装
 
-| 项 | 值 |
-|---|---|
-| 包名 | `deepseek-harness-desktop-wayland` |
-| 版本 | `0.2.2rc3-2`（上游 `dsh-v0.2.2-rc.3`，commit `38a6a5c9…`） |
-| 安装根 | `/opt/deepseek-harness-desktop-wayland`（1.12 GB 解包） |
-| 启动器 | `/usr/bin/deepseek-harness-wayland`（+ 兼容 symlink `/usr/bin/deepseek-harness`） |
-| pacman 包 | `deepseek-harness-desktop-wayland-0.2.2rc3-2-x86_64.pkg.tar.zst`（341 MB） |
-| sha256 | `c91e2d1e060e6957d492a6552f404ac0836da24b18e3ea8ac065c41900fe7935` |
-| 官方归档 sha256 | `bf6d668e52a26edf98aa2ef7960e240c8d9afcefbad2b09887a2cb1e14001dd5` |
+要求：Arch Linux `x86_64`，以及一个可用的 Wayland 会话（niri、Hyprland、KDE Wayland 等）。
 
-> 上表是 rc.3 基线；rolling 版本形如 `0.2.2rc3.r608.g39163dd-1`（上游 master commit + 补丁），由 GitHub Actions 自动发布到固定 tag 的 [rolling Release](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/rolling)。
-
-本机分发：使用独立的 `[dsh]` 云端源（GitHub rolling Release）；旧版本仍留在 `/srv/localrepo`，`[localrepo]` 继续给其他自维护项目用。
-
-## 安装 / 回滚
+在 `/etc/pacman.conf` 末尾新增一个**只属于 DSH** 的仓库段：
 
 ```ini
-# /etc/pacman.conf：只给 DSH 新增一段，localrepo 原样保留
 [dsh]
 SigLevel = Optional TrustAll
 Server = https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/download/rolling
@@ -46,156 +35,166 @@ Server = https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releas
 
 ```bash
 sudo pacman -Syy
+sudo pacman -S deepseek-harness-desktop-wayland
+```
+
+安装后从应用菜单启动 **DeepSeek Harness**，或运行：
+
+```bash
+deepseek-harness-wayland
+```
+
+以后更新：
+
+```bash
+paru -Syu
+# 或
 sudo pacman -Syu
 ```
 
-回滚：
+确认版本：
 
 ```bash
-sudo pacman -U /srv/localrepo/deepseek-harness-desktop-wayland-<旧版本>-x86_64.pkg.tar.zst
-# 或从 rolling Release 下载旧包后 pacman -U
+pacman -Q deepseek-harness-desktop-wayland
 ```
 
-### 零报错验收前置（用户 profile）
+> 包没有做 pacman 签名，所以 `SigLevel` 使用 `Optional TrustAll`；分发依赖 GitHub HTTPS 和 Release 里的 `SHA256SUMS`。介意的话可以在安装前自行下载核对。
 
-若 `~/.dsh/profiles/desktop/package.json` 的 `dsh.profile.bundles` 中含
-`"@deepseek-ai/dsh-experimental-inspector-profile"`，请移除该项并重启桌面端（同时消除 9230 无认证 CDP 调试端口的安全风险）。否则 DevTools console 会持续出现：
+### 包信息
 
-- 19+ 条 `WebSocket connection to 'ws://127.0.0.1:9230/ingest' failed` —— 该实验 bundle 的 Client 侧尝试连接 Inspector ingest，但桌面 renderer 的 `dsh-app://app` origin 不在上游白名单内（rc.3 未修）；
-- 少量 `GET /api/changes.summary?...&seq=... 404` —— 同一实验 bundle 的 session-inspector 为旧会话请求变更摘要，上游按 `missing` 处理但浏览器仍会记录 404。
-
-移除后实测 fresh 与用户 profile 均 **0 error / 0 warning**（见 docs/build-verification.md）。本机 2026-11-14 已由维护者执行移除（备份 `~/.dsh/profiles/desktop/package.json.bak-*`）。
-
-## 截图
-
-顶栏菜单移除（同一欢迎页）：
-
-| 修复前（上游 Linux 默认） | 修复后（本包） |
+| 项 | 值 |
 |---|---|
-| ![before](docs/evidence/rc3/menu-visible-old-build.png) | ![after](docs/evidence/rc3/menu-hidden-new-package.png) |
+| 包名 | `deepseek-harness-desktop-wayland` |
+| 安装根 | `/opt/deepseek-harness-desktop-wayland` |
+| 启动器 | `/usr/bin/deepseek-harness-wayland`（兼容 symlink `/usr/bin/deepseek-harness`） |
+| 桌面入口 | `/usr/share/applications/deepseek-harness.desktop` |
+| 下载 / 安装体积 | 约 360 MB / 1.1 GB |
+| 替换 | `deepseek-harness-desktop-linux`、`deepseek-harness-desktop-linux-bin` 等旧包 |
 
-## 验证摘要
+### 回滚
 
-| 验收项 | 结果 |
-|---|---|
-| 官方 rc.3 源码构建 | ✅ `@deepseek-ai/dsh-desktop 0.2.2-rc.3`，commit `38a6a5c9…` |
-| 原生 Wayland | ✅ 进程 `--ozone-platform=wayland`，无 X11/XWayland 回退；niri `app_id=deepseek-harness` |
-| NVIDIA 稳定性 | ✅ 8 组合 ×105–106 s：0 GPU 崩溃/FATAL；滚动 p95≈7 ms、>50 ms 掉帧 0；静止截图 AE≈0 |
-| GPU 渲染 / 硬解 | ✅ `gpu_compositing=enabled`、`video_decode=enabled`、ANGLE NVIDIA OpenGL；`video_encode` 仍软件（Chromium/NVIDIA 限制） |
-| 无白闪 | ✅ Linux 主窗口/welcome 首帧背景色跟随主题 |
-| DevTools console | ✅ fresh profile：0 error / 0 warning；用户 profile（移除 Inspector bundle）：0 error / 0 warning |
-| 补丁规模 | 17 个：构建启用 0001–0010（43 文件 / +414 −125）+ 运行期 0011–0017（约 260 行） |
+`rolling` Release 保留最近几个版本化包，可以直接按文件名回滚：
 
-完整报告：[docs/build-verification.md](docs/build-verification.md) · [docs/console-errors.md](docs/console-errors.md) · [docs/wayland-stability.md](docs/wayland-stability.md) · [docs/patch-design.md](docs/patch-design.md)
+```bash
+sudo pacman -U https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/download/rolling/deepseek-harness-desktop-wayland-<旧版本>-x86_64.pkg.tar.zst
+```
 
-## 运行期设计（launcher）
+## 版本与发布
 
-`/usr/bin/deepseek-harness-wayland` → `packaging/launcher/deepseek-harness`：
+本仓库跟踪上游 `master`，不追每个 commit：
 
-- Wayland 会话：强制 `--ozone-platform=wayland`；
-- 默认 `--disable-features=Vulkan`（NVIDIA+Wayland 保险，实测无副作用；ANGLE 仍在 OpenGL 路径）；
-- 硬解/光栅化 flags（与同机 Google Chrome 153 实测组合一致）：
-  `--enable-features=WaylandLinuxDrmSyncobj,VaapiOnNvidiaGPUs,AcceleratedVideoDecodeLinuxGL,AcceleratedVideoDecodeLinuxZeroCopyGL,PlatformHEVCDecoderSupport`
-  + `--enable-gpu-rasterization --enable-zero-copy`；
-- `LIBVA_DRIVER_NAME=nvidia` 仅在缺失且存在 `nvidia_drv_video.so` 时兜底；
-- GPU 彻底不可用（exit 75 / SIGTRAP + GPU 关键日志）时只重试一次 `--disable-gpu --disable-gpu-compositing`，仍是原生 Wayland，不切 X11。
+```text
+pkgver = <上游版本>.r<相对最近 tag 的提交数>.g<短 SHA>
+例：0.2.2rc4.r1407.gca33fd6-1
+```
 
-可调开关：`DSH_GPU_HWDECODE=0`、`DSH_GPU_RASTERIZATION=0`、`DSH_GPU_ZERO_COPY=0`、`DSH_WAYLAND_SYNCOBJ=0`、`DSH_GPU_FALLBACK=0`、`DSH_GPU_SOFTWARE=1`、`DSH_NO_SANDBOX=1`。
+- 每 6 小时检查一次上游；只有相关路径变化且 SHA 与上次构建不同才真正构建。
+- 所有构建发布到**同一个** [`rolling` Release](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/rolling)，不会为每个 commit 创建 tag/release。
+- Release 内含版本化 `.pkg.tar.zst`、pacman 数据库 `dsh.db`、`latest`、`SHA256SUMS` 和构建来源 `metadata.env`。
+- 构建失败不会发布；会自动创建/更新 `ci-failure` issue。上一次成功的包保持可用。
+- 完整规则见 [docs/automation.md](docs/automation.md)。
 
-## 构建
+## 从源码构建
 
-前置：Arch（`base-devel`）、`nodejs`、`pnpm`、`python`。仓库要求 pnpm 11.x 且入口可被 node 执行；若系统 pnpm 是二进制入口，构建脚本会回退到隔离版：
+需要 Arch（`base-devel`）、`nodejs`、`pnpm` 11.x、`python`。首次准备隔离的 pnpm：
 
 ```bash
 npm i --prefix ~/.local/share/dsh-pnpm-11 pnpm@11.28.5
 ```
 
-两种方式：
-
 ```bash
-# A. 全量源码包（默认固定到 PKGBUILD 内的 master commit；prepare() 应用 17 补丁）
-cd packaging && makepkg -C -s --nocheck
-
-# 指定其他上游 commit（CI 就是这样调的）
-DSH_PKGVER=0.2.2rc3.r608.g39163dd DSH_UPSTREAM_REF=<40位sha> \
-DSH_UPSTREAM_COMMIT=<40位sha> DSH_UPSTREAM_SHA256=<archive sha256> \
+git clone https://github.com/Moritz230127/deepseek-harness-desktop-wayland.git
+cd deepseek-harness-desktop-wayland/packaging
 makepkg -C -s --nocheck
-
-# B. 预构建载荷包（快速交付；复用已构建的 linux-unpacked）
-ci/package-wayland.sh <linux-unpacked> <out-dir> 0.2.2rc3
-
-# C. 手工构建（调试用）
-ci/build-wayland.sh <upstream-tree> --dir   # 需仍为已应用补丁的树
 ```
 
-产物布局：`apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/linux-unpacked`。
+PKGBUILD 默认固定到仓库内一个已验证的 commit，**不会**自动追最新 master；日常安装请直接用上面的滚动仓库。要手动构建其他上游版本，传入：
 
-构建环境已处理的坑（详见 docs/build-verification.md）：系统 pnpm 12 二进制入口、`/tmp` noexec 导致的 koffi 预编译失败、release tarball 无 `.git` 的 commit 注入、打包期内部 pnpm 的 registry 镜像。
+```bash
+DSH_PKGVER=<上游版本>.r<提交数>.g<短SHA> \
+DSH_UPSTREAM_REF=<40位 commit> \
+DSH_UPSTREAM_COMMIT=<40位 commit> \
+DSH_UPSTREAM_SHA256=<上游 archive 的 sha256> \
+makepkg -C -s --nocheck
+```
 
-## 补丁系列（17 个）
+构建会下载 Electron、Node 和 Python runtime，首次需要网络。产物在：
 
-### 构建启用（0001–0010，43 文件 / +414 −125）
+```text
+apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/linux-unpacked
+```
 
-基于 [ffyfox/dsh-desktop-linux](https://github.com/ffyfox/dsh-desktop-linux)（MIT）的 Linux 移植经验**重写并精简**，删掉全部测试/deb/rpm/AppImage 与美化 hunk：
+CI 使用 `archlinux:base-devel` 容器构建，脚本见 [ci/](ci/)；发布流程见 [docs/publish.md](docs/publish.md)。
 
-| # | 内容 |
-|---|---|
-| 0001 | desktop target 模型支持 `linux-x64` |
-| 0002 | `package-target.ts` 支持 Linux target |
-| 0003 | electron-builder Linux 配置（asar 关闭、desktopName、icon、无策略） |
-| 0004 | 分发 Electron 二进制（Linux 解压布局） |
-| 0005 | `.env.linux` 发布设置 + 工具链探测（Linux） |
-| 0006 | Linux 打包 scripts；local profile 也带官方品牌 |
-| 0007 | Host 改为 primary-runtime 独立 Node（Linux 上不用 Electron Node 模式） |
-| 0008 | 打包/冒烟链路适配 Linux 独立 Node |
-| 0009 | Linux 不嵌入/不轮询强制更新策略（policy opt-out） |
-| 0010 | release 源码无 `.git` 时从环境录制 build commit |
+## 补丁系列
 
-### 运行期收敛（0011–0016，199 行）
+补丁按“构建使能”和“运行时收敛”分组；完整说明、逐条目的和验证记录见 [docs/patch-design.md](docs/patch-design.md)。
 
-| # | 内容 |
-|---|---|
-| 0011 | Linux 主窗口/welcome 首帧背景色跟随主题（消除白闪） |
-| 0012 | Linux 隐藏「检查更新…」菜单项（pacman 管更新） |
-| 0013 | GPU `launch-failed` 时 `app.exit(75)` 交 launcher 一次性软件渲染兜底 |
-| 0014 | account profile 读取失败在 Linux 降级为 info（无账户后端属预期） |
-| 0015 | 会话 reference 已释放属正常 teardown，不再打 error |
-| 0016 | Linux 移除 GTK 应用菜单条（`Menu.setApplicationMenu(null)`），F12 保留 DevTools |
-| 0017 | `workspace/changes` 摘要缺失（Host 重启后旧轮次）改回 `200 null`，客户端仍按 missing 渲染，消除浏览器网络层 404 |
+| 组 | 补丁 | 作用 |
+|---|---|---|
+| 构建使能 | `0001`–`0010` | Linux target、electron-builder 配置、Electron/Host runtime、打包脚本、policy opt-out、build commit 录制 |
+| 运行时收敛 | `0011`–`0017` | 首帧背景色、隐藏更新入口、GPU 兜底、账户/会话日志降噪、移除 GTK 菜单条、404 收敛 |
 
-每个补丁都验证过：pristine rc.3 上按序 `git apply --check` 全通过；`patch -Np1` 通过；`makepkg --nodeps --nobuild` 的 prepare 阶段通过。
+上游 `master` 变动导致补丁不再 apply 时，CI 会在 `prepare()` 阶段直接失败，不会发布半成品；本地修复流程见 [docs/automation.md](docs/automation.md)。
+
+## 验证
+
+每次 CI 构建会跑：
+
+- 上游 `package:linux:x64:dir` 的 10 项 build gate（typecheck、Host/Desktop/Client bundle、Web build 等）；
+- 打包后的 runtime、CLI 插件安装/卸载、Office 文档 round-trip 冒烟。
+
+历史验证证据（Wayland、NVIDIA 稳定性、console 0 error、菜单条修复）见：
+
+- [docs/build-verification.md](docs/build-verification.md)
+- [docs/wayland-stability.md](docs/wayland-stability.md)
+- [docs/console-errors.md](docs/console-errors.md)
 
 ## 已知限制
 
-- `video_encode` 在 Chromium/NVIDIA 上为 `disabled_software`：**解码硬解**已启用，**编码**仍走软件。
-- niri 26.04 未宣告 `linux-drm-syncobj-v1`，显式同步 flag 当前为 no-op（保留前向兼容）。
-- 稳定性覆盖：8 组合 ×~105 s 矩阵 + 最终包抽测；**24 h+ soak、挂起/恢复、多显示器**未覆盖。
-- 本仓库是**本地预构建载荷包**的构建/打包项目（非 AUR 发布）；可复现性由官方归档 sha256 + 17 补丁 + 构建脚本保证。
-- 用户 profile 内插件仍 pin 在 0.2.2-rc.1；桌面升级后若插件异常，在插件管理页更新对应插件。
+- `video_encode` 在 Chromium/NVIDIA 上仍是软件实现；**解码**硬解可用，**编码**不可用。
+- niri 26.04 尚未宣告 `linux-drm-syncobj-v1`，显式同步 flag 当前为 no-op（保留前向兼容）。
+- 稳定性覆盖主要是短时矩阵和最终包抽测；**24h+ soak、挂起/恢复、多显示器**未系统覆盖。
+- 这是滚动包，上游 `master` 偶尔会短暂不可构建；CI 失败时保持上一版，不会自动升级到坏包。
+- 只提供 Arch Linux `x86_64` 包；其他发行版需要自行改 PKGBUILD。
 
 ## 仓库结构
 
-```
-ci/          build-wayland.sh（开发构建）/ package-wayland.sh（预构建打包）
-             ci-build.sh / makepkg.sh（CI）/ resolve-upstream.sh / publish-release.sh
-             sync-dsh-repo.sh（可选本地兜底）
-patches/     17 个补丁（0001–0017）
-packaging/   PKGBUILD（源码包）、PKGBUILD.prebuilt（快速交付）、launcher、desktop、systemd、icons、AppArmor、install
-docs/        验证/归因/补丁设计文档 + 证据截图
-launcher/    launcher 副本（研究交付位置）
-reference/   ffyfox-patches 参考基线（MIT，未直接作为运行时补丁）
+```text
+.github/workflows/build.yml   6 小时检查、Arch 容器构建、rolling 发布、失败 issue
+ci/                           构建/解析/发布/本地兜底脚本
+packaging/                    PKGBUILD、launcher、desktop entry、systemd unit、icon、AppArmor
+patches/                      0001–0017 最小补丁系列
+docs/                         自动化、补丁设计、验证报告、发布说明
+launcher/                     launcher 源文件
+reference/                    ffyfox 的 Linux 移植参考补丁（MIT，仅参考）
+research/                     早期设计记录
 ```
 
-## 发布与维护
+## FAQ
 
-- 自动构建（追踪上游 `master`）、版本规则、补丁 rebase 流程见 [docs/automation.md](docs/automation.md)。
-- 发布使用固定的 `rolling` Release（含版本化包、`dsh.db`、`latest`；独立 `[dsh]` 源，不占用 `[localrepo]`），不会为每个 commit 建 tag。
-- 手工发布与 GitHub 推送见 [docs/publish.md](docs/publish.md)。
-- 仓库默认 **private**；需要公开时：`gh repo edit --visibility public --accept-visibility-change-consequences`。
-- 本机 git 全局配置了 `gh-proxy` 的 `insteadOf` 重写，推送需绕过（详见 docs/publish.md 的命令）。
+**为什么不用 AUR？**
+
+AUR 只存源码配方，用户要自己重新编译 Electron 应用。这里分发的是约 360 MB 的二进制包，更适合用独立的 pacman 仓库。
+
+**会自动更新吗？**
+
+不会在应用内更新。CI 只负责构建和发布，更新由 `paru -Syu` / `pacman -Syu` 触发。
+
+**包坏了怎么办？**
+
+`rolling` Release 保留旧版本，可用 `pacman -U <旧包 URL>` 回滚；本机也可以保留旧包文件。
+
+**为什么版本号这么长？**
+
+`0.2.2rc4.r1407.gca33fd6-1` 对应上游 `0.2.2-rc.4` 之后第 1407 个提交、commit `ca33fd6`，保证每个包都能追溯到确切上游代码。
+
+**和上游官方桌面端是什么关系？**
+
+使用官方源码和官方构建流水线，只补 Linux 需要的接线；不是 DeepSeek 官方发行版，也不修改产品功能。
 
 ## 许可与致谢
 
 - 上游：[deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（MIT）
-- 参考：ffyfox/dsh-desktop-linux（MIT）的官方流水线 Linux 移植思路；补丁 0001–0010 为其经验的重写精简版
+- Linux 移植参考：[ffyfox/dsh-desktop-linux](https://github.com/ffyfox/dsh-desktop-linux)（MIT）；`reference/` 中保留参考补丁，不参与运行时构建
 - 本仓库：MIT
