@@ -18,16 +18,16 @@
 #   DSH_UPSTREAM_REF=<完整 40 位 commit SHA>（archive URL 也用它，保证可复现）
 #   DSH_UPSTREAM_COMMIT=<同一个 SHA>
 #   DSH_UPSTREAM_SHA256=<上游 archive 的 sha256>
-#   例：DSH_PKGVER=0.2.2rc3.r608.g39163dd DSH_UPSTREAM_REF=<sha> ... makepkg -s --nocheck
+#   例：DSH_PKGVER=0.2.2rc4.r1407.gca33fd6 DSH_UPSTREAM_REF=<sha> ... makepkg -s --nocheck
 
 pkgname=deepseek-harness-desktop-wayland
 # 默认固定到最近一次补丁 rebase 的上游 master commit；CI 每次通过环境变量覆盖。
-pkgver=${DSH_PKGVER:-0.2.2rc3.r608.g39163dd}
+pkgver=${DSH_PKGVER:-0.2.2rc4.r1407.gca33fd6}
 pkgrel=${DSH_PKGREL:-1}
-_tag=${DSH_UPSTREAM_REF:-39163dd30f703a79079e2d2446545cff3c453738}
-_commit=${DSH_UPSTREAM_COMMIT:-39163dd30f703a79079e2d2446545cff3c453738}
+_tag=${DSH_UPSTREAM_REF:-ca33fd6843b205e279c7ccb6cb73a472c78f5760}
+_commit=${DSH_UPSTREAM_COMMIT:-ca33fd6843b205e279c7ccb6cb73a472c78f5760}
 _srcdirname="deepseek-harness-$_tag"
-_upstream_archive_sha256=${DSH_UPSTREAM_SHA256:-f77ad662bf7d6875f01e34f69c9e1c5f4f306a4dd5265e663c2093fdf9957cc0}
+_upstream_archive_sha256=${DSH_UPSTREAM_SHA256:-b1de2e8e73e9faae2d32ff6f8e83ca24c308f42b01134ce07afc0d824d78afe0}
 pkgdesc='Official DeepSeek Harness desktop for Linux (Electron shell + bundled dsh runtime; native Wayland, NVIDIA-stable)'
 arch=('x86_64')
 url='https://github.com/deepseek-ai/deepseek-harness'
