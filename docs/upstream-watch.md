@@ -25,82 +25,71 @@ build-desktop（repository_dispatch）→ resolve → build → rolling release
 Rodriguez（repository_dispatch）→ 下载/重签/repo-add → pacman 可见
 ```
 
-关键点：
-
 - **只需要一个 fine-grained PAT**（两个仓 `Contents: Read and write`）；
 - **不需要在仓库里配置 secret**：镜像由 watcher 在 `latest` 变化后触发；
-- 不再依赖 GitHub 的 `schedule`；
-- 两个 dispatch 都是 API 调用，秒级生效；构建约 12 分钟，镜像约 1–2 分钟。
+- 不依赖 GitHub 的 `schedule`；
+- 只用 `git` + `curl`，不需要 `gh`；
+- 5 分钟一次，两次很小的 HTTPS 请求；正常时零输出，对 VPS 负载可忽略。
 
-构建仓自己的 `dispatch to Rodriguez` 步骤仍然保留：如果你另外配置了
-`RODRIGUEZ_DISPATCH_TOKEN`，构建完成会直接通知 Rodriguez，watcher 的镜像触发是冗余但无害的
-（Rodriguez 的 digest 去重会跳过重复）。
+## 推荐：部署到 VPS（systemd system service）
 
-## 一次性配置
-
-### 1. 创建 PAT
-
-<https://github.com/settings/personal-access-tokens/new>
-
-- Repository access：只选
-  - `Moritz230127/deepseek-harness-desktop-wayland`
-  - `Moritz230127/rodriguez`
-- Permissions：**Contents: Read and write**（两个仓），其余 No access
-- 过期时间按习惯（建议 90 天）
-
-### 2. 部署 watcher
+`ci/systemd/` 里有现成的 unit。一次性的安装步骤：
 
 ```bash
-install -Dm755 ci/upstream-watch.sh ~/.local/bin/upstream-watch.sh
+# 1) 专用用户（无 shell、无 home）
+sudo useradd --system --user-group --no-create-home --shell /usr/sbin/nologin dsh-watch
 
-install -d -m700 ~/.config/dsh-upstream-watch
-printf 'GH_TOKEN=%s\n' 'github_pat_xxx' > ~/.config/dsh-upstream-watch/env
-chmod 600 ~/.config/dsh-upstream-watch/env
+# 2) 脚本与 unit
+sudo install -Dm755 ci/upstream-watch.sh /usr/local/bin/upstream-watch.sh
+sudo install -Dm644 ci/systemd/dsh-upstream-watch.service /etc/systemd/system/
+sudo install -Dm644 ci/systemd/dsh-upstream-watch.timer   /etc/systemd/system/
+
+# 3) token（640，仅 root 与 dsh-watch 可读）
+sudo install -d -m755 /etc
+sudo touch /etc/dsh-upstream-watch.env
+sudo chown root:dsh-watch /etc/dsh-upstream-watch.env
+sudo chmod 640 /etc/dsh-upstream-watch.env
+sudoedit /etc/dsh-upstream-watch.env   # 写入 GH_TOKEN=github_pat_xxx
+
+# 4) 启动
+sudo systemctl daemon-reload
+sudo systemctl enable --now dsh-upstream-watch.timer
+sudo systemctl start dsh-upstream-watch.service
+sudo journalctl -u dsh-upstream-watch.service -n 30
+sudo systemctl list-timers dsh-upstream-watch.timer
 ```
 
-systemd user timer：
+unit 的关键点：
 
-```ini
-# ~/.config/systemd/user/dsh-upstream-watch.service
-[Unit]
-Description=DeepSeek Harness upstream watcher
+- `User=dsh-watch`，最小权限；
+- `StateDirectory=dsh-upstream-watch` → `/var/lib/dsh-upstream-watch` 存两个状态文件；
+- `Nice=10`、`IOSchedulingClass=idle`，对 VPS 其他服务让路；
+- `TimeoutStartSec=90`，不会挂死；
+- `RandomizedDelaySec=15`，避免整点拥塞。
 
-[Service]
-Type=oneshot
-EnvironmentFile=%h/.config/dsh-upstream-watch/env
-ExecStart=%h/.local/bin/upstream-watch.sh
-```
+### 负载评估
 
-```ini
-# ~/.config/systemd/user/dsh-upstream-watch.timer
-[Unit]
-Description=Poll dsh upstream + build latest every 5 minutes
+每 5 分钟：
 
-[Timer]
-OnBootSec=2min
-OnUnitActiveSec=5min
-Persistent=true
+- 1 次 `git ls-remote`（几十 KB 内）；
+- 1 次 `latest` 下载（185 B）；
+- 只有上游 head 或 `latest` 变化时才各发 1 次 GitHub API dispatch；
+- 一次进程存活几秒、内存 ~10–20 MB，`oneshot` 随即退出；
+- 不构建、不装包、不 clone 源码。
 
-[Install]
-WantedBy=timers.target
-```
+对一台正常 VPS 的影响可以忽略，不会威胁其他服务稳定性。
 
-```bash
-systemctl --user daemon-reload
-systemctl --user enable --now dsh-upstream-watch.timer
-systemctl --user list-timers dsh-upstream-watch.timer
-journalctl --user -u dsh-upstream-watch.service -n 30
-```
+## 本机部署（可选）
 
-VPS 上部署同理（systemd system unit 或 root cron），推荐 VPS，因为本机可能关机。
+本机也可以跑同样的脚本（systemd user timer），但**只在本机开机时工作**；要 24/7 还是放 VPS。
 
-### 3. 验证
+## 验证
 
 ```bash
 # 清状态，强制走一遍两个 dispatch
-rm -rf ~/.local/state/dsh-upstream-watch
-GH_TOKEN=$(sed -n 's/^GH_TOKEN=//p' ~/.config/dsh-upstream-watch/env) \
-  ~/.local/bin/upstream-watch.sh
+sudo rm -rf /var/lib/dsh-upstream-watch
+sudo systemctl start dsh-upstream-watch.service
+sudo journalctl -u dsh-upstream-watch.service -n 20
 
 gh run list -R Moritz230127/deepseek-harness-desktop-wayland --limit 3
 gh run list -R Moritz230127/rodriguez --limit 3
@@ -109,27 +98,27 @@ gh run list -R Moritz230127/rodriguez --limit 3
 预期：
 
 - 构建仓出现一条 `repository_dispatch` 的 `build-desktop` run（上游 head 与上次构建相同则
-  resolve 直接跳过，不会重复构建）；
+  resolve 跳过，不会重复构建）；
 - `latest` 与上次镜像不同时，Rodriguez 出现一条 `repository_dispatch` 的 `repo` run；
-  digest 已存在则镜像步骤会跳过。
+  digest 已存在则镜像步骤跳过。
 
 ## 运行语义
 
-- watcher 每 5 分钟跑一次，`master.sha` / `latest.artifact` 两个状态文件避免重复 dispatch。
-- 上游 head 变化但只有 docs/tests 时，build 的 `resolve` 会跳过（不会浪费 12 分钟）。
+- `master.sha` / `latest.artifact` 两个状态文件避免重复 dispatch。
+- 上游 head 变化但只有 docs/tests 时，build 的 `resolve` 会跳过。
 - 新 tag 在 `resolve` 里绕过 1 小时 cooldown。
-- `latest` 变化时才触发镜像；构建失败不会改 `latest`，所以不会镜像坏包。
-- 本机 watcher 关机期间不会补跑；开机后下一次 timer 会看到最新状态并 dispatch。
-  需要 24/7 就放 VPS。
+- `latest` 变化时才触发镜像；构建失败不改 `latest`，不会镜像坏包。
+- 上游网络暂时不可达时脚本退出 0（只记一行日志），不会让 timer 反复报失败。
 
 ## 安全
 
-- PAT 只放 watcher 的 600 环境文件；不要提交、不要贴到 issue。
+- PAT 只放 `/etc/dsh-upstream-watch.env`（640 root:dsh-watch），不要提交、不要贴到 issue。
 - 只有两个仓的 Contents 写权限；泄漏后立即 revoke 并轮换。
 - watcher 只读 `git ls-remote` 和公开的 `latest` 资产，不 clone、不上传源码。
 
 ## 维护
 
 - 上游默认分支变化时改脚本里的 `refs/heads/master`。
-- PAT 过期会报 401；重新生成并更新环境文件。
-- GitHub 定时器恢复后，watcher 可以保留（双保险），也可以只留 watcher 停掉不可靠的 cron。
+- PAT 过期会报 401；重新生成并更新 `/etc/dsh-upstream-watch.env`，`systemctl restart` 不需要，
+  下一次 timer 会读到新值。
+- GitHub 定时器恢复后，watcher 可以保留（双保险），也可以停掉不可靠的 schedule。

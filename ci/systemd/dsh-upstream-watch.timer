@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll dsh upstream + build latest every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+RandomizedDelaySec=15
+
+[Install]
+WantedBy=timers.target

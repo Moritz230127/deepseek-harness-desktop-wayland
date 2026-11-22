@@ -1,0 +1,17 @@
+[Unit]
+Description=DeepSeek Harness upstream watcher
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=dsh-watch
+Group=dsh-watch
+EnvironmentFile=/etc/dsh-upstream-watch.env
+Environment=STATE_DIR=/var/lib/dsh-upstream-watch
+Environment=HOME=/var/lib/dsh-upstream-watch
+StateDirectory=dsh-upstream-watch
+ExecStart=/usr/local/bin/upstream-watch.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=90
