@@ -1,0 +1,109 @@
+#!/bin/sh
+# dsh-wayland-doctor — 只读诊断 DeepSeek Harness 在 Arch Linux / Wayland 上的显示与 GPU 状态。
+#
+# 用法：dsh-wayland-doctor
+# 退出码：0（诊断完成；不表示一定有问题）
+set -u
+
+section() { printf '\n== %s ==\n' "$*"; }
+line() { printf '%-34s %s\n' "$1" "$2"; }
+
+section "会话"
+line "XDG_SESSION_TYPE" "${XDG_SESSION_TYPE:-<unset>}"
+line "XDG_CURRENT_DESKTOP" "${XDG_CURRENT_DESKTOP:-<unset>}"
+line "WAYLAND_DISPLAY" "${WAYLAND_DISPLAY:-<unset>}"
+line "DISPLAY" "${DISPLAY:-<unset>}"
+
+section "合成器"
+if command -v niri >/dev/null 2>&1; then
+  line "niri" "$(niri --version 2>/dev/null | head -1)"
+  if command -v wayland-info >/dev/null 2>&1; then
+    if wayland-info 2>/dev/null | grep -q 'linux_drm_syncobj_manager_v1'; then
+      line "explicit sync" "支持（WaylandLinuxDrmSyncobj 可生效）"
+    else
+      line "explicit sync" "不支持（niri 26.04 无 linux-drm-syncobj-v1）"
+    fi
+  else
+    line "wayland-info" "未安装（pacman -S wayland-utils 可补）"
+  fi
+else
+  line "niri" "未安装或不在 PATH"
+fi
+
+section "GPU"
+if [ -e /proc/driver/nvidia/version ]; then
+  line "NVIDIA" "$(head -1 /proc/driver/nvidia/version)"
+elif command -v nvidia-smi >/dev/null 2>&1; then
+  line "NVIDIA" "$(nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/dev/null | head -1)"
+else
+  line "NVIDIA" "未检测到 /proc/driver/nvidia/version"
+fi
+
+section "niri 稳定性配置"
+cfgdir="${XDG_CONFIG_HOME:-$HOME/.config}/niri"
+if [ -d "$cfgdir" ]; then
+  if grep -Rqs 'wait-for-frame-completion-before-queueing' "$cfgdir"; then
+    line "wait-for-frame" "已启用"
+  else
+    line "wait-for-frame" "未启用（NVIDIA 闪烁时必加）"
+  fi
+  if grep -Rqs 'opacity 0.99' "$cfgdir"; then
+    line "dsh opacity 0.99" "已配置"
+  else
+    line "dsh opacity 0.99" "未配置（可选，用于强制合成）"
+  fi
+else
+  line "$cfgdir" "不存在"
+fi
+
+section "运行中的 dsh"
+pid=$(pgrep -f '/opt/deepseek-harness-desktop-wayland/deepseek-harness' 2>/dev/null | head -1)
+if [ -z "$pid" ]; then
+  line "进程" "未运行"
+else
+  line "主进程" "pid=$pid elapsed=$(ps -o etime= -p "$pid" 2>/dev/null | tr -d ' ')"
+  gpu=$(pgrep -f '/opt/deepseek-harness-desktop-wayland/deepseek-harness.*--type=gpu-process' 2>/dev/null | head -1)
+  [ -n "$gpu" ] && line "GPU 进程" "pid=$gpu" || line "GPU 进程" "未找到"
+  flags=$(ps -o args= -p "$pid" 2>/dev/null | tr ' ' '\n' | grep -E '^--(ozone|enable-features|disable-features|use-gl|use-angle|disable-gpu)' | tr '\n' ' ')
+  line "关键 flags" "${flags:-<none>}"
+fi
+
+section "GPU 日志"
+log="${XDG_RUNTIME_DIR:-/tmp}/dsh-desktop-gpu-fallback.log"
+if [ -r "$log" ]; then
+  line "日志" "$log"
+  count() {
+    _c=$(grep -a -E -c "$1" "$log" 2>/dev/null || true)
+    printf '%s' "${_c:-0}"
+  }
+  line "Frame latency negative" "$(count 'Frame latency is negative')"
+  line "GPU process unusable" "$(count "GPU process isn't usable|GPU process launch failed")"
+else
+  line "日志" "$log（不存在）"
+fi
+
+section "建议"
+if [ -e /proc/driver/nvidia/version ] && command -v niri >/dev/null 2>&1; then
+  if ! grep -Rqs 'wait-for-frame-completion-before-queueing' "$cfgdir" 2>/dev/null; then
+    cat <<'EOF'
+  • 在 ~/.config/niri/config.kdl 的 debug {} 中加：
+        wait-for-frame-completion-before-queueing
+    然后 niri msg action load-config-file。这是 niri 26.04 无 explicit sync 时的
+    已知最有效缓解。
+EOF
+  fi
+  cat <<'EOF'
+  • 仍有偶发黑块/错位/频闪时，按代价从低到高试：
+      niri debug: restrict-primary-scanout-to-matching-format
+      niri debug: disable-direct-scanout
+      DSH_GPU_COMPOSITING=software deepseek-harness-wayland
+      DSH_GPU_ZERO_COPY=0 deepseek-harness-wayland
+    每次只改一项，至少用一段时间再判断。
+  • 若日志里 GPU process 计数持续增长，说明是 GPU 进程级故障，launcher 会自动做一次
+    软件渲染兜底；请把 dsh-desktop-gpu-fallback.log 尾部附到 issue。
+EOF
+else
+  echo "  • 未检测到 NVIDIA + niri 组合，按常规 Wayland 使用即可。"
+fi
+
+exit 0

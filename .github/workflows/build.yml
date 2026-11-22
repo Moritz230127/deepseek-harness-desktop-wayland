@@ -2,9 +2,9 @@ name: build-desktop
 
 on:
   schedule:
-    # 每 6 小时检查一次（UTC 00/06/12/18 = CST 08/14/20/02）。
-    # 只有相关路径变化且上游 SHA 与上次构建不同才会真正构建；GitHub cron 可能延迟。
-    - cron: '0 */6 * * *'
+    # AUR `-git` 语义：每 5 分钟看一次 master 的当前 head（resolve 只花约 10 秒）。
+    # master 构建有 1 小时 cooldown，避免 359MB 包刷爆带宽；上游新 tag 会绕过 cooldown 立即构建。
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       ref:
@@ -12,9 +12,13 @@ on:
         required: false
         default: 'master'
       pkgrel:
-        description: 'pkgrel（补丁变更但上游 SHA 不变时加一）'
+        description: 'pkgrel（留空自动：新 SHA=1；同 SHA 重建=上次+1）'
         required: false
-        default: '1'
+        default: ''
+      min_interval:
+        description: 'master 构建最小间隔（秒；新 tag 绕过）'
+        required: false
+        default: '3600'
       force:
         description: '强制重建（即使同 SHA 的 release 已存在）'
         type: boolean
@@ -41,13 +45,15 @@ jobs:
       base_tag: ${{ steps.resolve.outputs.base_tag }}
       ahead: ${{ steps.resolve.outputs.ahead }}
       upstream_date: ${{ steps.resolve.outputs.upstream_date }}
+      last_version: ${{ steps.resolve.outputs.last_version }}
     steps:
       - uses: actions/checkout@v4
       - id: resolve
         env:
           GH_TOKEN: ${{ github.token }}
           INPUT_REF: ${{ inputs.ref || 'master' }}
-          INPUT_PKGREL: ${{ inputs.pkgrel || '1' }}
+          INPUT_PKGREL: ${{ inputs.pkgrel }}
+          INPUT_MIN_INTERVAL: ${{ inputs.min_interval || '3600' }}
           INPUT_FORCE: ${{ inputs.force || 'false' }}
         run: ./ci/resolve-upstream.sh
 
@@ -68,9 +74,10 @@ jobs:
           PKGVER: ${{ needs.resolve.outputs.pkgver }}
           PKGREL: ${{ needs.resolve.outputs.pkgrel }}
           ARCHIVE_SHA256: ${{ needs.resolve.outputs.archive_sha256 }}
+          LAST_VERSION: ${{ needs.resolve.outputs.last_version }}
         run: |
           docker run --rm -v "$PWD:/w" -w /w \
-            -e SHA -e PKGVER -e PKGREL -e ARCHIVE_SHA256 \
+            -e SHA -e PKGVER -e PKGREL -e ARCHIVE_SHA256 -e LAST_VERSION \
             -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
             archlinux:base-devel bash -lc './ci/ci-build.sh'
       - name: publish release
@@ -85,6 +92,43 @@ jobs:
           AHEAD: ${{ needs.resolve.outputs.ahead }}
           BASE_TAG: ${{ needs.resolve.outputs.base_tag }}
         run: ./ci/publish-release.sh
+
+      # 发布成功后主动通知 Rodriguez，立即镜像；不再等它的定时轮询。
+      # 需要 secret RODRIGUEZ_DISPATCH_TOKEN：fine-grained PAT，仅 Rodriguez 仓
+      # Contents: Read and write。没有配置时静默跳过，Rodriguez 侧每小时兜底。
+      - name: dispatch to Rodriguez
+        if: success()
+        env:
+          TOKEN: ${{ secrets.RODRIGUEZ_DISPATCH_TOKEN }}
+          PKGVER: ${{ needs.resolve.outputs.pkgver }}
+          PKGREL: ${{ needs.resolve.outputs.pkgrel }}
+          SHA: ${{ needs.resolve.outputs.sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TOKEN:-}" ]; then
+            echo "RODRIGUEZ_DISPATCH_TOKEN 未配置，跳过事件通知（由 Rodriguez 轮询兜底）"
+            exit 0
+          fi
+          artifact=$(sed -n 's/^artifact=//p' out/latest | head -1)
+          test -n "$artifact"
+          test -f "out/$artifact"
+          sha256=$(sha256sum "out/$artifact" | awk '{print $1}')
+          payload=$(jq -n \
+            --arg artifact "$artifact" \
+            --arg sha256 "$sha256" \
+            --arg pkgver "$PKGVER" \
+            --arg pkgrel "$PKGREL" \
+            --arg upstream_sha "$SHA" \
+            '{event_type:"dsh-published",client_payload:{
+              artifact:$artifact, artifact_sha256:$sha256,
+              pkgver:$pkgver, pkgrel:$pkgrel, upstream_sha:$upstream_sha}}')
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "$GITHUB_API_URL/repos/Moritz230127/rodriguez/dispatches" \
+            --data-binary "$payload"
+          echo "==> 已通知 Rodriguez：$artifact"
 
   notify:
     needs: [resolve, build]

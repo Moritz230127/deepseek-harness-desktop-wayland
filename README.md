@@ -21,6 +21,26 @@
 - **干净的 Linux 窗口**：移除上游 GTK 应用菜单条；`F12` 仍可打开 DevTools。
 - **可复现构建**：每次构建固定到 40 位上游 commit；CI 在 Arch 容器里构建并跑构建门禁与打包后冒烟。
 
+### NVIDIA + niri 的显示稳定性（重要）
+
+niri 26.04 还没有实现 `linux-drm-syncobj-v1`（explicit sync）。NVIDIA 下 Chromium/Electron
+的 GPU 合成与 niri 的 DRM 提交之间只能用隐式同步，偶发黑块、错位、频闪——这不是 dsh
+源码能修的，也不是 launcher flag 能修的。niri 侧的最小、已验证缓解手段是在
+`~/.config/niri/config.kdl` 的 `debug {}` 里加一行：
+
+```kdl
+debug {
+    wait-for-frame-completion-before-queueing
+}
+```
+
+它让 niri 在把帧交给 DRM 前等待本帧 GPU 渲染完成，直接消除该竞态；代价是合成器线程
+每帧多等一次渲染完成（UI 场景通常 <1ms，游戏可能少几帧）。原理、备选方案和回退见
+[docs/nvidia-niri.md](docs/nvidia-niri.md)。
+
+装好包后可以先跑 `dsh-wayland-doctor`：它会只读检查会话、GPU、niri 的 explicit sync/
+wait-for-frame、dsh 的 GPU 进程与日志，并打印下一步建议。
+
 ## 安装
 
 要求：Arch Linux `x86_64`，以及一个可用的 Wayland 会话（niri、Hyprland、KDE Wayland 等）。
@@ -67,6 +87,7 @@ pacman -Q deepseek-harness-desktop-wayland
 | 包名 | `deepseek-harness-desktop-wayland` |
 | 安装根 | `/opt/deepseek-harness-desktop-wayland` |
 | 启动器 | `/usr/bin/deepseek-harness-wayland`（兼容 symlink `/usr/bin/deepseek-harness`） |
+| 诊断 | `/usr/bin/dsh-wayland-doctor`（只读检查 NVIDIA/niri 稳定性配置） |
 | 桌面入口 | `/usr/share/applications/deepseek-harness.desktop` |
 | 下载 / 安装体积 | 约 360 MB / 1.1 GB |
 | 替换 | `deepseek-harness-desktop-linux`、`deepseek-harness-desktop-linux-bin` 等旧包 |
@@ -81,17 +102,40 @@ sudo pacman -U https://github.com/Moritz230127/deepseek-harness-desktop-wayland/
 
 ## 版本与发布
 
-本仓库跟踪上游 `master`，不追每个 commit：
+本仓库以 AUR `-git` 的方式跟踪上游 `master` 的**当前 head**：
 
 ```text
 pkgver = <上游版本>.r<相对最近 tag 的提交数>.g<短 SHA>
 例：0.2.2rc4.r1407.gca33fd6-1
 ```
 
-- 每 6 小时检查一次上游；只有相关路径变化且 SHA 与上次构建不同才真正构建。
+- 每 **5 分钟**检查一次上游；master 构建有 1 小时 cooldown，上游新 tag 会绕过 cooldown 立即构建，`pkgver` 永远对应一个 40 位 commit。
+- 同一上游 SHA 下只改 `patches/` 时，CI 自动 `pkgrel+1` 重建（不再需要手动 `force`）。
+- 只有 docs/tests 变更才跳过；补丁变化、强制重建、版本回退都有显式保护。
 - 所有构建发布到**同一个** [`rolling` Release](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/rolling)，不会为每个 commit 创建 tag/release。
 - Release 内含版本化 `.pkg.tar.zst`、pacman 数据库 `dsh.db`、`latest`、`SHA256SUMS` 和构建来源 `metadata.env`。
 - 构建失败不会发布；会自动创建/更新 `ci-failure` issue。上一次成功的包保持可用。
+
+### 这是不是 `dsh-git`？
+
+**语义上是，包名不是。** 本包等价于 AUR 的 `-git` 包：
+
+- `pkgver` 是 `master` 当前 head 的 `<上游版本>.r<提交数>.g<短 SHA>`，每次构建固定一个 40 位 commit；
+- 每 5 分钟检查上游，master 构建 1 小时 cooldown，新 tag 绕过 cooldown 立即构建；
+- 补丁变化自动 `pkgrel+1`，不需要手动 `force`。
+
+包名仍保留 `deepseek-harness-desktop-wayland`，是为了避免 pacman 包名迁移。若要与 AUR
+完全对齐，可改名为 `dsh-git`，同时加：
+
+```bash
+provides=('dsh' 'deepseek-harness-desktop')
+conflicts=('dsh' 'deepseek-harness-desktop-wayland' ...)
+replaces=('deepseek-harness-desktop-wayland')
+```
+
+这是一次性的包名迁移，不影响 `/opt` 安装路径和启动器。AUR 的 `-git` 是用户本机
+`makepkg` 时随时重建；这里是 CI 预构建二进制，必须有 cooldown，否则 359 MB 包会每几分钟
+上传一次，带宽和 Release 存储都不可持续。
 - 完整规则见 [docs/automation.md](docs/automation.md)。
 
 ## 从源码构建
@@ -153,7 +197,8 @@ CI 使用 `archlinux:base-devel` 容器构建，脚本见 [ci/](ci/)；发布流
 ## 已知限制
 
 - `video_encode` 在 Chromium/NVIDIA 上仍是软件实现；**解码**硬解可用，**编码**不可用。
-- niri 26.04 尚未宣告 `linux-drm-syncobj-v1`，显式同步 flag 当前为 no-op（保留前向兼容）。
+- niri 26.04 尚未宣告 `linux-drm-syncobj-v1`，`--enable-features=WaylandLinuxDrmSyncobj` 当前为 no-op；
+  NVIDIA 用户请在 niri 侧启用 `debug { wait-for-frame-completion-before-queueing }`（见 [docs/nvidia-niri.md](docs/nvidia-niri.md)）。
 - 稳定性覆盖主要是短时矩阵和最终包抽测；**24h+ soak、挂起/恢复、多显示器**未系统覆盖。
 - 这是滚动包，上游 `master` 偶尔会短暂不可构建；CI 失败时保持上一版，不会自动升级到坏包。
 - 只提供 Arch Linux `x86_64` 包；其他发行版需要自行改 PKGBUILD。
@@ -161,7 +206,7 @@ CI 使用 `archlinux:base-devel` 容器构建，脚本见 [ci/](ci/)；发布流
 ## 仓库结构
 
 ```text
-.github/workflows/build.yml   6 小时检查、Arch 容器构建、rolling 发布、失败 issue
+.github/workflows/build.yml   5 分钟检查 / 1 小时 cooldown、Arch 容器构建、rolling 发布、失败 issue、发版通知
 ci/                           构建/解析/发布/本地兜底脚本
 packaging/                    PKGBUILD、launcher、desktop entry、systemd unit、icon、AppArmor
 patches/                      0001–0017 最小补丁系列

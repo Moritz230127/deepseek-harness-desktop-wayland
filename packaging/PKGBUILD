@@ -28,17 +28,18 @@ _tag=${DSH_UPSTREAM_REF:-ca33fd6843b205e279c7ccb6cb73a472c78f5760}
 _commit=${DSH_UPSTREAM_COMMIT:-ca33fd6843b205e279c7ccb6cb73a472c78f5760}
 _srcdirname="deepseek-harness-$_tag"
 _upstream_archive_sha256=${DSH_UPSTREAM_SHA256:-b1de2e8e73e9faae2d32ff6f8e83ca24c308f42b01134ce07afc0d824d78afe0}
-pkgdesc='Official DeepSeek Harness desktop for Linux (Electron shell + bundled dsh runtime; native Wayland, NVIDIA-stable)'
+pkgdesc='Unofficial DeepSeek Harness desktop for Linux (Electron shell + bundled dsh runtime; Arch/Wayland, tracks upstream master)'
 arch=('x86_64')
 url='https://github.com/deepseek-ai/deepseek-harness'
 license=('MIT')
-depends=('gtk3' 'nss' 'libnotify' 'libxtst' 'xdg-utils' 'at-spi2-core' 'libsecret' 'alsa-lib' 'dbus' 'libxcrypt-compat')
+depends=('gtk3' 'nss' 'libnotify' 'libxtst' 'xdg-utils' 'at-spi2-core' 'libsecret' 'alsa-lib' 'dbus' 'libxcrypt-compat' 'wayland' 'libdrm' 'mesa')
 makedepends=('nodejs' 'pnpm' 'python')
 optdepends=('libpulse: PulseAudio/PipeWire 音频输出'
             'nvidia-utils: NVIDIA 驱动与加速'
+            'libva-nvidia-driver: NVIDIA VA-API 硬解（可选）'
             'noto-fonts-cjk: 中文/日文/韩文字体显示')
-provides=('deepseek-harness-desktop')
-conflicts=('deepseek-harness-desktop-linux' 'deepseek-harness-desktop-linux-bin'
+provides=('deepseek-harness-desktop' 'dsh')
+conflicts=('dsh' 'deepseek-harness-desktop-linux' 'deepseek-harness-desktop-linux-bin'
            'deepseek-harness-desktop-linux-git' 'deepseek-harness-desktop' 'dsh-desktop-linux-bin')
 replaces=('deepseek-harness-desktop-linux')
 options=('!strip' '!debug' '!emptydirs')
@@ -70,6 +71,7 @@ source=(
   # launcher/、desktop/、systemd/、icons/ 里的单一来源；复制本目录去 AUR/暂存目录
   # 请用 `cp -aL` 解引用。
   'deepseek-harness-wayland'
+  'dsh-wayland-doctor'
   'deepseek-harness.desktop'
   'deepseek-harness-desktop.service'
   'deepseek-harness.install'
@@ -80,7 +82,8 @@ sha256sums=(
   "$_upstream_archive_sha256"
   'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
   'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP'
-  '19c841836b9c4c8bed9459f00fe0d2ad572809e36a8ae053aaf4a1d811dda93a'   # launcher（wayland-analyst 定稿）
+  'a75c2c2ef54d644e161078fb59ac062aecbd98006df1a628bb1eca3e55395dc9'   # launcher（wayland-analyst 定稿）
+  'd46c932fcb267f6620569bcae77e311e3dde5a8f084e85c335883f1e3863c635'   # dsh-wayland-doctor
   'd26f3b2d1c80c9b8ab3c9bf30f0fcff6e822b1e493d3c7ca2f945aeb3af3ae5e'   # desktop entry
   'a141347c25118ae887f55410e9b408b4dc7c2fdf0abf50a48f823f31ffc772f1'   # systemd user unit
   '2f1bed82d303525aae00e40ff4293928c11691abbc68998ea771809e26d81c25'   # pacman install 脚本
@@ -177,6 +180,7 @@ package() {
   install -d "$pkgdir/usr/bin"
   install -Dm755 "$srcdir/deepseek-harness-wayland" "$pkgdir/usr/bin/deepseek-harness-wayland"
   ln -s /usr/bin/deepseek-harness-wayland "$pkgdir/usr/bin/deepseek-harness"
+  install -Dm755 "$srcdir/dsh-wayland-doctor" "$pkgdir/usr/bin/dsh-wayland-doctor"
 
   install -Dm644 "$srcdir/deepseek-harness.desktop" "$pkgdir/usr/share/applications/deepseek-harness.desktop"
   install -Dm644 "$srcdir/deepseek-harness-desktop.service" \

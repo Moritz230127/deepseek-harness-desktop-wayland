@@ -10,6 +10,28 @@ set -euo pipefail
 : "${PKGREL:?}"
 : "${ARCHIVE_SHA256:?}"
 
+# 版本单调性守卫：同一个上游 SHA 的补丁重建必须递增 pkgrel；新 SHA 必须让 pkgver 前进。
+# 防止手动 dispatch 旧 ref 或重复 pkgrel 造成 pacman 永远收不到更新。
+if [[ -n ${LAST_VERSION:-} ]]; then
+  new_version="$PKGVER-$PKGREL"
+  if (( $(vercmp "$new_version" "$LAST_VERSION") <= 0 )); then
+    echo "拒绝发布未前进的版本：new=$new_version last=$LAST_VERSION" >&2
+    exit 4
+  fi
+  echo "==> 版本前进：$LAST_VERSION -> $new_version"
+fi
+
+# 防止 launcher 源（launcher/）与打包副本（packaging/launcher/）漂移：
+# PKGBUILD 的本地 source 用的是打包副本，历史上有过只改源、没同步副本导致修复没进包。
+for f in deepseek-harness dsh-wayland-doctor; do
+  if [[ -f "launcher/$f" && -f "packaging/launcher/$f" ]]; then
+    if ! diff -q "launcher/$f" "packaging/launcher/$f" >/dev/null; then
+      echo "launcher 源与打包副本不一致：请同步 packaging/launcher/$f" >&2
+      exit 5
+    fi
+  fi
+done
+
 HOST_UID=${HOST_UID:-1000}
 HOST_GID=${HOST_GID:-1000}
 

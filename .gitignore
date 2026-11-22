@@ -1,2 +1,8 @@
 work/
 out/
+
+# makepkg 下载/产物，不入库
+packaging/*.tar.gz
+packaging/src/
+packaging/pkg/
+packaging/*.pkg.tar.zst

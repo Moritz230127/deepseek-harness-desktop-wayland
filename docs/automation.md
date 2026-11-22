@@ -15,8 +15,8 @@ pkgver = <上游 package.json 版本>.r<相对最近 tag 的提交数>.g<短 SHA
 
 - `pkgver` 里的 SHA 是 40 位 commit；`source=` 直接指向
   `https://github.com/deepseek-ai/deepseek-harness/archive/<sha>.tar.gz`，构建可复现。
-- 同一个上游 SHA、同一套补丁重复构建时，把 `pkgrel` 加一。
-- 不追每个 commit：工作流每 6 小时检查一次，只有相关路径变化且 SHA 与上一次构建不同才构建。
+- 同一上游 SHA 下 `patches/` 变化时，CI 自动 `pkgrel+1` 重建；新 SHA 从 1 开始。
+- 每 **5 分钟**检查一次 `master` 的当前 head；master 构建至少间隔 1 小时（可用 `min_interval` 调），新 tag 绕过 cooldown；只有代码路径变化才真正构建，docs/tests 变更跳过。
 
 ## 发布模型：一个 rolling Release
 
@@ -69,8 +69,8 @@ gh workflow run build-desktop -R Moritz230127/deepseek-harness-desktop-wayland
 # 固定到某个 commit / tag
 gh workflow run build-desktop -R ... -f ref=<sha|tag>
 
-# 补丁变了但上游 SHA 没变：加 pkgrel 并强制重建
-gh workflow run build-desktop -R ... -f pkgrel=2 -f force=true
+# 补丁变了但上游 SHA 没变：CI 会自动 pkgrel+1；手动触发时留空 pkgrel 即可
+gh workflow run build-desktop -R ...
 ```
 
 ## 可选：本机兜底
@@ -164,7 +164,7 @@ rm -rf /tmp/pkgtest && mkdir /tmp/pkgtest && cp -aL packaging/. /tmp/pkgtest/
 cd /tmp/pkgtest && makepkg --nobuild --nocheck --nodeps
 ```
 
-通过后提交补丁，再 `gh workflow run ... -f pkgrel=<n> -f force=true`。
+通过后提交补丁；CI 会在下一个 5 分钟窗口自动 `pkgrel+1` 重建（也可手动 dispatch，留空 pkgrel）。
 
 ## 回滚
 
@@ -181,7 +181,7 @@ sudo pacman -U /srv/dshrepo/deepseek-harness-desktop-wayland-<旧版本>-x86_64.
 ## 成本与限制
 
 - 公开仓库：Actions 分钟数免费；私有仓库：Free 计划 2,000 分钟/月。
-  一次实际构建约 12 分钟（2026-11-17 实测）；6 小时检查、最多 4 次/天，约 48 分钟/天、1,440 分钟/月。私有仓库 Free 额度 2,000 分钟/月，余量不大；长期建议公开仓库。
+  一次实际构建约 12 分钟（2026-11-17 实测）；5 分钟检查约 288 次/天、每次 resolve 约 10–15 秒，约 48 分钟/天；master 构建最多 24 次/天（1 小时 cooldown），新 tag 额外触发。公开仓库 Actions 免费；私有仓库 Free 额度 2,000 分钟/月，按 24 次构建/天估算约 8,600 分钟/月，**会超**——私有仓库请把 cooldown 调大（例如 6 小时）或改用公开仓库。
 - 单个 release 持有多个版本化包，每个约 341 MB；工作流只保留最近 3 个。
 - CI 不保存 YubiKey 私钥，也不签名 pacman 包；本机 `[localrepo]` 是 `SigLevel = Optional TrustAll`，
   依赖 HTTPS + `SHA256SUMS` 校验。需要签名时在本机入库阶段用 `repo-add -s`。

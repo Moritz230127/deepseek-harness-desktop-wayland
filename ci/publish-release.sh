@@ -94,25 +94,39 @@ trap 'rm -f "$notes"' EXIT
     || echo "(compare unavailable)"
 } > "$notes"
 
-assets=("$pkg" out/dsh.db out/metadata.env out/SHA256SUMS out/latest)
+# 发布顺序：先传 359 MB 包，再传 db/metadata/SHA256SUMS，最后单独更新 latest。
+# latest 是给镜像端读的“指针”，它出现时被引用的包与校验和必须已经存在；
+# 旧的写法把所有资产塞进一次 gh release upload，latest 会比包早 10 秒左右可见。
+package_assets=("$pkg")
+meta_assets=(out/dsh.db out/metadata.env out/SHA256SUMS)
 
 if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-  echo "==> 更新 rolling release"
-  gh release upload "$tag" "${assets[@]}" -R "$GITHUB_REPOSITORY" --clobber
+  echo "==> 更新 rolling release：先传包"
+  gh release upload "$tag" "${package_assets[@]}" -R "$GITHUB_REPOSITORY" --clobber
+  echo "==> 更新 rolling release：再传数据库与校验和"
+  gh release upload "$tag" "${meta_assets[@]}" -R "$GITHUB_REPOSITORY" --clobber
+  echo "==> 更新 rolling release：最后更新 latest 指针"
+  gh release upload "$tag" out/latest -R "$GITHUB_REPOSITORY" --clobber
   gh release edit "$tag" -R "$GITHUB_REPOSITORY" \
     --prerelease \
     --title "rolling: deepseek-harness-desktop-wayland $PKGVER-$PKGREL" \
     --notes-file "$notes"
 else
-  echo "==> 创建 rolling release"
+  echo "==> 创建 rolling release（先 draft，传完再公开）"
   extra=()
   if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
     extra+=(--verify-tag)
   fi
-  gh release create "$tag" "${assets[@]}" -R "$GITHUB_REPOSITORY" \
-    --prerelease \
+  gh release create "$tag" -R "$GITHUB_REPOSITORY" \
+    --draft \
     --title "rolling: deepseek-harness-desktop-wayland $PKGVER-$PKGREL" \
     --notes-file "$notes" "${extra[@]}"
+  gh release upload "$tag" "${package_assets[@]}" -R "$GITHUB_REPOSITORY"
+  gh release upload "$tag" "${meta_assets[@]}" -R "$GITHUB_REPOSITORY"
+  gh release upload "$tag" out/latest -R "$GITHUB_REPOSITORY"
+  gh release edit "$tag" -R "$GITHUB_REPOSITORY" --draft=false --prerelease \
+    --title "rolling: deepseek-harness-desktop-wayland $PKGVER-$PKGREL" \
+    --notes-file "$notes"
 fi
 
 # 只保留当前包 + 最近 2 个旧包，避免单个 release 无限膨胀。

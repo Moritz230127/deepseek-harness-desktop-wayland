@@ -15,6 +15,7 @@
 #                            （显式同步特性；合成器不宣告该协议时 Chromium 自动忽略）
 #   DSH_GPU_DISABLE_VULKAN=0 保留 Chromium Vulkan 特性（默认 1：在 NVIDIA+Wayland 上关闭）
 #   DSH_GPU_SOFTWARE=1       直接以软件渲染启动（排障用，仍原生 Wayland）
+#   DSH_GPU_COMPOSITING=software  只关 GPU 合成（保留 GPU 光栅/WebGL/视频；闪烁折中排障）
 #   DSH_GPU_HWDECODE=0       关闭 VA-API 硬解/GPU 光栅化补充 flags（默认 1 开启）
 #   DSH_GPU_RASTERIZATION=0  去掉 --enable-gpu-rasterization
 #   DSH_GPU_ZERO_COPY=0      去掉 --enable-zero-copy
@@ -99,6 +100,12 @@ fi
 if [ "${DSH_GPU_SOFTWARE:-0}" = '1' ]; then
     # 显式排障模式：完全软件合成，仍然走 Wayland 窗口。
     set -- "$@" --disable-gpu --disable-gpu-compositing
+fi
+
+if [ "${DSH_GPU_COMPOSITING:-gpu}" = 'software' ]; then
+    # 折中排障：UI 合成走软件，GPU 光栅/WebGL/视频仍硬渲染；损失比 DSH_GPU_SOFTWARE=1 小。
+    # 只有在 niri 的 wait-for-frame-completion-before-queueing 仍不足时才用。
+    set -- "$@" --disable-gpu-compositing
 fi
 
 if [ "${DSH_GPU_DISABLE_VULKAN:-1}" != '0' ] && is_nvidia &&
