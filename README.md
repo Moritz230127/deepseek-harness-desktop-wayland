@@ -1,5 +1,7 @@
 # DeepSeek Harness Desktop · Linux (Wayland)
 
+![DeepSeek Harness Desktop cover](docs/assets/cover.png)
+
 [![build](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/actions/workflows/build.yml/badge.svg)](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/actions/workflows/build.yml)
 [![package](https://img.shields.io/badge/package-rolling-blue)](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/rolling)
 [![platform](https://img.shields.io/badge/platform-Arch%20Linux%20%7C%20Wayland-1793d1)](https://archlinux.org)
@@ -10,7 +12,6 @@
 
 > **非 DeepSeek 官方发行版。** 上游项目是 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness)（MIT）；本仓库只负责 Linux 构建、最小补丁和 pacman 打包。使用问题请提到本仓库，不要打扰上游。
 
-![DeepSeek Harness on Linux](docs/evidence/rc3/menu-hidden-new-package.png)
 
 ## 特性
 
