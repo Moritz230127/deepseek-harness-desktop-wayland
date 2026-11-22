@@ -110,6 +110,9 @@ pkgver = <上游版本>.r<相对最近 tag 的提交数>.g<短 SHA>
 ```
 
 - 每 **5 分钟**检查一次上游；master 构建有 1 小时 cooldown，上游新 tag 会绕过 cooldown 立即构建，`pkgver` 永远对应一个 40 位 commit。
+- GitHub 的 `schedule` 在本仓库实测会长时间不触发（2026-11-22 12:00Z 档 20+ 分钟未启动）。
+  关键路径用 [docs/upstream-watch.md](docs/upstream-watch.md) 的 5 分钟 PAT watcher 触发
+  `repository_dispatch`；5 分钟 cron 和 `push` 触发只做兜底。
 - 同一上游 SHA 下只改 `patches/` 时，CI 自动 `pkgrel+1` 重建（不再需要手动 `force`）。
 - 只有 docs/tests 变更才跳过；补丁变化、强制重建、版本回退都有显式保护。
 - 所有构建发布到**同一个** [`rolling` Release](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/rolling)，不会为每个 commit 创建 tag/release。

@@ -15,6 +15,11 @@ on:
     # AUR `-git` 语义：每 5 分钟看一次 master 的当前 head（resolve 只花约 10 秒）。
     # master 构建有 1 小时 cooldown，避免 359MB 包刷爆带宽；上游新 tag 会绕过 cooldown 立即构建。
     - cron: '*/5 * * * *'
+  # 外部 watcher（VPS/本机 systemd timer，5 分钟）用 PAT 调用：
+  #   gh api repos/<this>/dispatches -f event_type=dsh-upstream
+  # 解决 GitHub schedule 实测长期延迟/不触发的问题；见 docs/upstream-watch.md。
+  repository_dispatch:
+    types: [dsh-upstream]
   workflow_dispatch:
     inputs:
       ref:
