@@ -77,24 +77,10 @@ niri msg action load-config-file
    - 只限制格式不匹配时的直接扫描，代价小于完全禁用扫描。
 2. **`disable-direct-scanout`**（niri debug）
    - 完全禁用直接扫描；最稳，但全屏视频/游戏会多一点合成功耗。
-3. **只对 dsh 强制合成**（niri window-rule）
-   ```kdl
-   window-rule {
-       match app-id=r#"^deepseek-harness$"#
-       opacity 0.99
-   }
-   ```
-   - 半透明窗口通常无法直接扫描，等于只对 dsh 关闭 direct scanout；
-   - 0.99 视觉上几乎不可见；代价仅限 dsh 窗口。
-4. **去掉 dsh 的圆角裁剪**（如果黑块出现在四角/边缘）
-   ```kdl
-   window-rule {
-       match app-id=r#"^deepseek-harness$"#
-       geometry-corner-radius 0
-       clip-to-geometry false
-   }
-   ```
-5. **Chromium 侧兜底**（会损失性能，不设为默认）
+> **不使用按窗口覆盖 opacity / 圆角 / clip**：用户要求所有窗口保持同一套全局外观，
+> 不接受 dsh 的窗口特殊配置。需要更强措施时用下面的**全局**选项，不要对单个窗口做特殊规则。
+
+3. **Chromium 侧兜底**（会损失性能，不设为默认）
    ```bash
    DSH_GPU_COMPOSITING=software deepseek-harness-wayland   # 只关 UI 合成，保留 GPU 光栅/WebGL/视频
    # 或更彻底

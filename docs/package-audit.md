@@ -7,8 +7,9 @@
 
 1. 依赖补全（`wayland` / `libdrm` / `mesa`）和 `pkgdesc` 纠正（非官方构建）；
 2. `-git` 式跟踪节奏与补丁自动 `pkgrel`；
-3. 把 NVIDIA + niri 的稳定性修复放到 **niri 配置**（`wait-for-frame-completion-before-queueing`
-   + 仅对 dsh 的 `opacity 0.99` / 去圆角裁剪），不动 dsh 源码。
+3. 把 NVIDIA + niri 的稳定性修复放到 **niri 全局配置**
+   （`wait-for-frame-completion-before-queueing`），不动 dsh 源码；
+   不使用按窗口的 opacity/圆角覆盖（用户要求全局一致外观）。
 
 ## 17 个补丁的必要性
 
