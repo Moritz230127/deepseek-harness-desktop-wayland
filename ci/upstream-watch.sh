@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # 外部触发器：替代不可靠的 GitHub schedule。
 #
-# 每 5 分钟（systemd timer / cron）做两件事：
+# 每 5 分钟（systemd timer / cron）做三件事：
 #   1) 上游 master head 变化 → 触发构建仓 build-desktop（repository_dispatch）；
-#   2) 构建仓 rolling release 的 latest artifact 变化 → 触发 Rodriguez 镜像。
+#   2) 构建仓 rolling release 的 latest artifact 变化 → 触发 Rodriguez 镜像；
+#   3) 每 UTC 日一次心跳（dsh-heartbeat）→ 让“watcher 还活着”在 GitHub Actions 里可见，
+#      缺失 48h 由 build.yml 的 watcher-watchdog 开 issue。
 #
 # 只需要一个 fine-grained PAT（两个仓 Contents: Read and write）；
 # 不依赖 gh CLI，只用 git/curl，适合 VPS 上最小化部署。
@@ -67,4 +69,18 @@ if [[ -n $artifact && $artifact != "$last_artifact" ]]; then
     "$(printf '{"event_type":"dsh-published","client_payload":{"artifact":"%s","upstream_sha":"%s"}}' "$artifact" "$upstream_sha")"
   printf '%s\n' "$artifact" > "$state_dir/latest.artifact"
   echo "dispatched mirror for $artifact"
+fi
+
+# 3) 每日心跳：只发一次/UTC 日。watcher 正常时它每天在 build 仓留一条 run，
+#    停摆后 48h 内 watcher-watchdog 会开 watcher-stale issue。
+beat_file="$state_dir/heartbeat.date"
+today=$(date -u +%F)
+if [[ $(cat "$beat_file" 2>/dev/null || true) != "$today" ]]; then
+  if dispatch "$build_repo" \
+      "$(printf '{"event_type":"dsh-heartbeat","client_payload":{"source":"upstream-watch","date":"%s"}}' "$today")"; then
+    printf '%s\n' "$today" > "$beat_file"
+    echo "heartbeat sent for $today"
+  else
+    echo "心跳发送失败，下一轮重试" >&2
+  fi
 fi

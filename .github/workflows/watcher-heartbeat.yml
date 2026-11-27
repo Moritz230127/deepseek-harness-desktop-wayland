@@ -1,0 +1,40 @@
+name: watcher-heartbeat
+
+# 外部 watcher（VPS 上的 systemd timer，5 分钟一次）每天发一次心跳。
+# 心跳本身不构建任何东西：它只让“watcher 还活着”这件事在 Actions 运行历史里可见。
+# build.yml 的 watcher-watchdog 会在心跳缺失 48h 后开 watcher-stale issue。
+# 相关文档：docs/upstream-watch.md
+
+on:
+  repository_dispatch:
+    types: [dsh-heartbeat]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: watcher-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  beat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: record heartbeat
+        env:
+          SOURCE: ${{ github.event.client_payload.source || 'manual' }}
+          BEAT_DATE: ${{ github.event.client_payload.date || '' }}
+        run: |
+          set -euo pipefail
+          stamp=$(date -u +%FT%TZ)
+          echo "watcher heartbeat: $stamp（source=${SOURCE:-unknown} date=${BEAT_DATE:-n/a}）" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+          {
+            echo
+            echo "- source: \`${SOURCE:-unknown}\`"
+            echo "- watcher date: \`${BEAT_DATE:-n/a}\`"
+            echo "- received: \`$stamp\`"
+            echo "- run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } >> "$GITHUB_STEP_SUMMARY"

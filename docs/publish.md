@@ -51,13 +51,18 @@ ls -lh deepseek-harness-desktop-wayland-*.pkg.tar.zst
 gh release create rolling out/*.pkg.tar.zst out/dsh.db out/latest \
   out/metadata.env out/SHA256SUMS \
   -R Moritz230127/deepseek-harness-desktop-wayland \
-  --prerelease \
+  --latest \
   --title "rolling: deepseek-harness-desktop-wayland <pkgver>-<pkgrel>" \
   --notes-file release-notes.md
 # 已存在时
 gh release upload rolling out/*.pkg.tar.zst out/dsh.db out/latest \
   out/metadata.env out/SHA256SUMS -R ... --clobber
+gh release edit rolling -R ... --latest --title "rolling: ..." --notes-file release-notes.md
 ```
+
+`rolling` 是仓库唯一在维护的 Release，因此标成 **Latest**（不再带 pre-release 标记）：
+Releases 页、仓库侧栏和 `gh release list` 看到的“最新版本”永远等于 pacman 现在能装到的版本。
+GitHub 不允许把 pre-release 标成 Latest，所以 `--prerelease` 和 `--latest` 二选一，这里选后者。
 
 ## 公开仓库：DSH 独立源，localrepo 留给其他项目
 

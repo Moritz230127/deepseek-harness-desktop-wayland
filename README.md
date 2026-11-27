@@ -46,7 +46,34 @@ wait-for-frame、dsh 的 GPU 进程与日志，并打印下一步建议。
 
 要求：Arch Linux `x86_64`，以及一个可用的 Wayland 会话（niri、Hyprland、KDE Wayland 等）。
 
-在 `/etc/pacman.conf` 末尾新增一个**只属于 DSH** 的仓库段：
+推荐用本机在用的签名源 [`rodriguez`](https://github.com/Moritz230127/rodriguez)：同一个源
+还分发其他自维护包，DSH 由构建仓发布后自动同步过去。在 `/etc/pacman.conf` 末尾加入：
+
+```ini
+[rodriguez]
+SigLevel = Required DatabaseOptional
+Server = https://github.com/Moritz230127/rodriguez/releases/download/rolling
+```
+
+首次使用先导入仓库公钥并本地签名：
+
+```bash
+curl -fsSL https://github.com/Moritz230127/rodriguez/releases/download/rolling/packages.asc \
+  -o /tmp/rodriguez.asc
+sudo pacman-key --add /tmp/rodriguez.asc
+sudo pacman-key --lsign-key 028A4747923154F7
+```
+
+```bash
+sudo pacman -Syu
+sudo pacman -S deepseek-harness-desktop-wayland
+# 包 provides=('dsh')，所以 `sudo pacman -S dsh` 也能装到
+```
+
+> 不要只跑 `pacman -Sy` 装单个包；Arch 上始终用 `pacman -Syu`，避免部分升级。
+
+只想装 DSH、不引入签名源的话，也可以直连构建仓（**没有 pacman 签名**，完整性靠
+GitHub HTTPS 和 Release 里的 `SHA256SUMS`）：
 
 ```ini
 [dsh]
@@ -55,8 +82,7 @@ Server = https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releas
 ```
 
 ```bash
-sudo pacman -Syy
-sudo pacman -S deepseek-harness-desktop-wayland
+sudo pacman -Syy && sudo pacman -S deepseek-harness-desktop-wayland
 ```
 
 安装后从应用菜单启动 **DeepSeek Harness**，或运行：
@@ -65,7 +91,7 @@ sudo pacman -S deepseek-harness-desktop-wayland
 deepseek-harness-wayland
 ```
 
-以后更新：
+以后更新（两个源都是同一条命令）：
 
 ```bash
 paru -Syu
@@ -78,8 +104,6 @@ sudo pacman -Syu
 ```bash
 pacman -Q deepseek-harness-desktop-wayland
 ```
-
-> 包没有做 pacman 签名，所以 `SigLevel` 使用 `Optional TrustAll`；分发依赖 GitHub HTTPS 和 Release 里的 `SHA256SUMS`。介意的话可以在安装前自行下载核对。
 
 ### 包信息
 
@@ -116,9 +140,10 @@ pkgver = <上游版本>.r<相对最近 tag 的提交数>.g<短 SHA>
   `repository_dispatch`；5 分钟 cron 和 `push` 触发只做兜底。
 - 同一上游 SHA 下只改 `patches/` 时，CI 自动 `pkgrel+1` 重建（不再需要手动 `force`）。
 - 只有 docs/tests 变更才跳过；补丁变化、强制重建、版本回退都有显式保护。
-- 所有构建发布到**同一个** [`rolling` Release](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/rolling)，不会为每个 commit 创建 tag/release。
+- 所有构建发布到**同一个** [`rolling` Release](https://github.com/Moritz230127/deepseek-harness-desktop-wayland/releases/tag/rolling)，不会为每个 commit 创建 tag/release。它是仓库唯一在维护的 Release，因此标为 **Latest**：Releases 页、仓库侧栏看到的“最新版本”永远等于 pacman 现在能装到的版本。
 - Release 内含版本化 `.pkg.tar.zst`、pacman 数据库 `dsh.db`、`latest`、`SHA256SUMS` 和构建来源 `metadata.env`。
 - 构建失败不会发布；会自动创建/更新 `ci-failure` issue。上一次成功的包保持可用。
+- 外部 watcher 每天发一次心跳；48 小时没有心跳，`watcher-watchdog` 会开 `watcher-stale` issue，不会让“watcher 静默死掉”烂在那里（见 [docs/upstream-watch.md](docs/upstream-watch.md)）。
 
 ### 这是不是 `dsh-git`？
 
@@ -211,6 +236,7 @@ CI 使用 `archlinux:base-devel` 容器构建，脚本见 [ci/](ci/)；发布流
 
 ```text
 .github/workflows/build.yml   5 分钟检查 / 1 小时 cooldown、Arch 容器构建、rolling 发布、失败 issue、发版通知
+.github/workflows/watcher-heartbeat.yml  外部 watcher 的每日心跳（只记录时间戳，不构建）
 ci/                           构建/解析/发布/本地兜底脚本
 packaging/                    PKGBUILD、launcher、desktop entry、systemd unit、icon、AppArmor
 patches/                      0001–0017 最小补丁系列

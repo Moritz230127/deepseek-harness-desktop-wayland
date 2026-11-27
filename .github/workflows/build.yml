@@ -213,3 +213,79 @@ jobs:
             gh issue create -R "$GITHUB_REPOSITORY" --title "$title" \
               "${label_args[@]}" --body-file "$body"
           fi
+
+  watcher-watchdog:
+    # 纯观测，不参与构建：外部 watcher 每天发一次心跳（watcher-heartbeat 工作流），
+    # 超过 48h 没有心跳就开/续写 watcher-stale issue。
+    # schedule 被 GitHub 限流也只是晚几个小时发现——它监控的是“监控本身”。
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - name: check watcher heartbeat
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          # 第一次部署心跳（VPS 换脚本）之前的宽限期，避免一上线就刷 issue。
+          GRACE_UNTIL: '2026-12-02'
+        run: |
+          set -euo pipefail
+          max_age=$((48 * 3600))
+          now=$(date -u +%s)
+
+          last=$(gh api "repos/$REPO/actions/workflows/watcher-heartbeat.yml/runs?per_page=1" \
+                   --jq '.workflow_runs[0].created_at // empty' 2>/dev/null || true)
+
+          if [[ -z $last ]]; then
+            if [[ $(date -u +%F) < ${GRACE_UNTIL} ]]; then
+              echo "尚无 watcher 心跳；${GRACE_UNTIL} 之前算部署宽限期，跳过"
+              exit 0
+            fi
+            reason="watcher 从未发过心跳：VPS 上的 upstream-watch.sh 可能还是加心跳之前的版本，或者 timer 没在跑。"
+          else
+            age=$(( now - $(date -u -d "$last" +%s) ))
+            echo "最近一次心跳：$last（$((age / 3600)) 小时前）"
+            if (( age < max_age )); then
+              echo "心跳正常，无需处理"
+              exit 0
+            fi
+            reason="最近一次 watcher 心跳是 $last，已 $((age / 3600)) 小时没有更新（阈值 48 小时）。"
+          fi
+
+          gh label create watcher-stale --color FBCA04 \
+            --description "upstream watcher heartbeat missing" --force >/dev/null 2>&1 || true
+
+          body=$(mktemp)
+          trap 'rm -f "$body"' EXIT
+          {
+            echo "$reason"
+            echo
+            echo "心跳缺失不影响已经发布出去的包，但会退化实时性：上游 master/tag 变化后，"
+            echo "构建只剩被 GitHub 限流的 schedule 兜底（实测每天 2–3 次），镜像也可能变慢。"
+            echo
+            echo "在 VPS 上排查："
+            echo
+            echo '```bash'
+            echo 'sudo systemctl list-timers dsh-upstream-watch.timer --no-pager'
+            echo 'sudo systemctl status dsh-upstream-watch.service --no-pager'
+            echo 'sudo journalctl -u dsh-upstream-watch.service -n 50 --no-pager'
+            echo '```'
+            echo
+            echo "常见原因："
+            echo
+            echo "1. VPS 上的 \`upstream-watch.sh\` 还是加心跳之前的版本 —— 重新 install 一次即可；"
+            echo "2. PAT 过期（journal 里是 401）—— 更新 \`/etc/dsh-upstream-watch.env\`；"
+            echo "3. timer 被停掉，或者 VPS 没开机。"
+            echo
+            echo "部署/更新步骤见 [docs/upstream-watch.md](../blob/main/docs/upstream-watch.md)。"
+          } > "$body"
+
+          issue=$(gh issue list -R "$REPO" --state open --label watcher-stale --limit 10 \
+                    --json number --jq '.[0].number // empty' 2>/dev/null || true)
+          if [[ -n ${issue:-} ]]; then
+            gh issue comment "$issue" -R "$REPO" --body-file "$body"
+          else
+            gh issue create -R "$REPO" --title "watcher heartbeat missing" \
+              --label watcher-stale --body-file "$body"
+          fi

@@ -108,7 +108,7 @@ if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
   echo "==> 更新 rolling release：最后更新 latest 指针"
   gh release upload "$tag" out/latest -R "$GITHUB_REPOSITORY" --clobber
   gh release edit "$tag" -R "$GITHUB_REPOSITORY" \
-    --prerelease \
+    --latest \
     --title "rolling: deepseek-harness-desktop-wayland $PKGVER-$PKGREL" \
     --notes-file "$notes"
 else
@@ -124,7 +124,7 @@ else
   gh release upload "$tag" "${package_assets[@]}" -R "$GITHUB_REPOSITORY"
   gh release upload "$tag" "${meta_assets[@]}" -R "$GITHUB_REPOSITORY"
   gh release upload "$tag" out/latest -R "$GITHUB_REPOSITORY"
-  gh release edit "$tag" -R "$GITHUB_REPOSITORY" --draft=false --prerelease \
+  gh release edit "$tag" -R "$GITHUB_REPOSITORY" --draft=false --latest \
     --title "rolling: deepseek-harness-desktop-wayland $PKGVER-$PKGREL" \
     --notes-file "$notes"
 fi
