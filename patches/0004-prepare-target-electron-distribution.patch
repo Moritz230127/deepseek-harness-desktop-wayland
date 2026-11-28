@@ -12,12 +12,13 @@ index a0698880..b3f5c792 100644
  import { createRuntimeProjectMetadata } from '../src/project-manager.ts'
  import { DESKTOP_HOST_PROTOCOL_VERSION } from '../src/host-protocol.ts'
  import { parseDesktopRelease, type DesktopRelease } from '../src/release.ts'
-@@ -32,19 +32,23 @@ import {
+@@ -32,20 +32,24 @@ import {
  import {
    signMacOSRuntime,
  } from './macos-runtime.ts'
 -import { desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
 +import { desktopElectronExecutablePath, desktopTargetPlatform, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
+ import { buildNativePackages, verifyNativePackages } from './native-package-builds.mjs'
  import { desktopRuntimeFileExclusion } from './runtime-file-policy.ts'
  import { selectOfficeEngine } from '../../../scripts/libreoffice-packages.mjs'
  
